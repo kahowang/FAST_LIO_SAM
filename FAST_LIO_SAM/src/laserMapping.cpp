@@ -96,7 +96,15 @@
 #include <gtsam/inference/Symbol.h>
 
 #include <gtsam/nonlinear/ISAM2.h>
+
 #include "fast_lio_sam/save_map.h"
+#include "fast_lio_sam/save_pose.h"
+
+// save data in kitti format 
+#include <sstream>
+#include <fstream>
+#include <iomanip>
+
 // using namespace gtsam;
 
 #define INIT_TIME (0.1)
@@ -186,6 +194,7 @@ pcl::PointCloud<PointTypePose>::Ptr cloudKeyPoses6D(new pcl::PointCloud<PointTyp
 pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>());
 
+pcl::PointCloud<PointTypePose>::Ptr fastlio_unoptimized_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>()); //  存储fastlio 未优化的位姿
 // voxel filter paprams
 float odometrySurfLeafSize;
 float mappingCornerLeafSize;
@@ -270,8 +279,12 @@ float globalMapVisualizationLeafSize;
 
 // saveMap
 ros::ServiceServer srvSaveMap;
+ros::ServiceServer srvSavePose;
 bool savePCD;               // 是否保存地图
 string savePCDDirectory;    // 保存路径
+
+
+
 /**
  * 更新里程计轨迹
  */
@@ -583,7 +596,7 @@ void saveKeyFramesAndFactor()
     if (saveFrame() == false)
         return;
 
-    // 激光里程计因子(from fast-lio)
+    // 激光里程计因子(from fast-lio),  输入的是frame_relative pose  帧间位姿(body 系下)
     addOdomFactor();
 
     // GPS因子 (UTM -> WGS84)
@@ -825,8 +838,29 @@ void loopFindNearKeyframes(pcl::PointCloud<PointType>::Ptr &nearKeyframes, const
         int keyNear = key + i;
         if (keyNear < 0 || keyNear >= cloudSize)
             continue;
+
         // *nearKeyframes += *transformPointCloud(cornerCloudKeyFrames[keyNear], &copy_cloudKeyPoses6D->points[keyNear]);
-        *nearKeyframes += *transformPointCloud(surfCloudKeyFrames[keyNear], &copy_cloudKeyPoses6D->points[keyNear]); //  fast-lio 没有进行特征提取，默认点云就是surf
+        // 注意：cloudKeyPoses6D 存储的是 T_w_b , 而点云是lidar系下的，构建icp的submap时，需要通过外参数T_b_lidar 转换 , 参考pointBodyToWorld 的转换
+        Eigen::Isometry3d T_b_lidar(state_point.offset_R_L_I  );       //  exec R
+        T_b_lidar.pretranslate(state_point.offset_T_L_I);         //   exec t  
+
+        M3D rotation_matrix = Exp(double(copy_cloudKeyPoses6D->points[keyNear].roll), double(copy_cloudKeyPoses6D->points[keyNear].pitch), double(copy_cloudKeyPoses6D->points[keyNear].yaw));
+        V3D translate(copy_cloudKeyPoses6D->points[keyNear].x,copy_cloudKeyPoses6D->points[keyNear].y,copy_cloudKeyPoses6D->points[keyNear].z);
+        Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
+        T_w_b.pretranslate(translate);        //   world2body  translate
+
+        Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;
+        PointTypePose relative_w_lidar ;
+        relative_w_lidar.x = T_w_lidar.translation().x();
+        relative_w_lidar.y = T_w_lidar.translation().y();
+        relative_w_lidar.z = T_w_lidar.translation().z();
+
+        V3D rot_ang(Log(T_w_lidar.rotation()));
+        relative_w_lidar.roll = rot_ang(0);
+        relative_w_lidar.pitch = rot_ang(1);
+        relative_w_lidar.yaw = rot_ang(2);
+
+        *nearKeyframes += *transformPointCloud(surfCloudKeyFrames[keyNear], &relative_w_lidar); //  fast-lio 没有进行特征提取，默认点云就是surf
     }
 
     if (nearKeyframes->empty())
@@ -1012,7 +1046,7 @@ void pointBodyToWorld(const Matrix<T, 3, 1> &pi, Matrix<T, 3, 1> &po)
     po[2] = p_global(2);
 }
 
-void RGBpointBodyToWorld(PointType const *const pi, PointType *const po)
+void RGBpointBodyToWorld(PointType const *const pi, PointType *const po)        //  lidar2world
 {
     V3D p_body(pi->x, pi->y, pi->z);
     V3D p_global(state_point.rot * (state_point.offset_R_L_I * p_body + state_point.offset_T_L_I) + state_point.pos);
@@ -1480,6 +1514,17 @@ void publish_path(const ros::Publisher pubPath)
     {
         path.poses.push_back(msg_body_pose);
         pubPath.publish(path);
+        
+        //  save  unoptimized pose
+         V3D rot_ang(Log( state_point.rot.toRotationMatrix())); //   旋转向量
+        PointTypePose thisPose6D;  
+        thisPose6D.x = msg_body_pose.pose.position.x ;
+        thisPose6D.y = msg_body_pose.pose.position.y ;
+        thisPose6D.z = msg_body_pose.pose.position.z ;
+        thisPose6D.roll = rot_ang(0) ;
+        thisPose6D.pitch = rot_ang(1) ;
+        thisPose6D.yaw = rot_ang(2) ;
+        fastlio_unoptimized_cloudKeyPoses6D->push_back(thisPose6D);   
     }
 }
 
@@ -1502,13 +1547,77 @@ void publish_path_update(const ros::Publisher pubPath)
     }
 }
 
+
+/*定义pose结构体*/
+struct pose
+{
+    Eigen::Vector3d  t ;
+    Eigen::Matrix3d  R;
+};
+
+bool CreateFile(std::ofstream& ofs, std::string file_path) {
+    ofs.open(file_path, std::ios::out);                          //  使用std::ios::out 可实现覆盖
+    if(!ofs)
+    {
+        std::cout << "open csv file error " << std::endl;
+        return  false;
+    }
+    return true;
+}
+
+/* write2txt   format  KITTI*/
+void WriteText(std::ofstream& ofs, pose data){
+    ofs << std::fixed  <<  data.R(0,0)  << " " << data.R(0,1)   << " "<<   data.R(0,2)  << " "  <<    data.t[0]  <<  " "
+                                      <<  data.R(1,0)  << " "  << data.R(1,1)  <<" " <<   data.R(1,2)   << " "  <<   data.t[1]  <<  " "
+                                      <<  data.R(2,0)  << " "  << data.R(2,1)  <<" " <<   data.R(2,2)   << " "  <<   data.t[2]  <<  std::endl;
+
+}
+
+bool savePoseService(fast_lio_sam::save_poseRequest& req, fast_lio_sam::save_poseResponse& res)
+{
+     pose pose_optimized ;
+     pose pose_without_optimized ;
+
+     std::ofstream  file_pose_optimized ;
+     std::ofstream  file_pose_without_optimized ;
+
+    string savePoseDirectory;
+    cout << "****************************************************" << endl;
+    cout << "Saving poses to pose files ..." << endl;
+    if(req.destination.empty()) savePoseDirectory = std::getenv("HOME") + savePCDDirectory;
+    else savePoseDirectory = std::getenv("HOME") + req.destination;
+    cout << "Save destination: " << savePoseDirectory << endl;
+
+    // create file 
+    CreateFile(file_pose_optimized, savePoseDirectory + "/optimized_pose.txt");
+    CreateFile(file_pose_without_optimized, savePoseDirectory + "/without_optimized_pose.txt");
+
+    //  save optimize data
+    for(int i = 0; i  < cloudKeyPoses6D->size(); i++){  
+        pose_optimized.t =  Eigen::Vector3d(cloudKeyPoses6D->points[i].x, cloudKeyPoses6D->points[i].y, cloudKeyPoses6D->points[i].z  );
+        pose_optimized.R = Exp(double(cloudKeyPoses6D->points[i].roll), double(cloudKeyPoses6D->points[i].pitch), double(cloudKeyPoses6D->points[i].yaw) );
+        WriteText(file_pose_optimized, pose_optimized);
+    }
+    cout << "Sucess optimized  poses to pose files ..." << endl;
+
+    for(int i = 0; i  < fastlio_unoptimized_cloudKeyPoses6D->size(); i++){  
+        pose_without_optimized.t =  Eigen::Vector3d(fastlio_unoptimized_cloudKeyPoses6D->points[i].x, fastlio_unoptimized_cloudKeyPoses6D->points[i].y, fastlio_unoptimized_cloudKeyPoses6D->points[i].z  );
+        pose_without_optimized.R = Exp(double(fastlio_unoptimized_cloudKeyPoses6D->points[i].roll), double(fastlio_unoptimized_cloudKeyPoses6D->points[i].pitch), double(fastlio_unoptimized_cloudKeyPoses6D->points[i].yaw) );
+        WriteText(file_pose_without_optimized, pose_without_optimized);
+    }
+
+    file_pose_optimized.close();
+    file_pose_without_optimized.close();
+    return true  ;
+}
+
 /**
  * 保存全局关键帧特征点集合
 */
 bool saveMapService(fast_lio_sam::save_mapRequest& req, fast_lio_sam::save_mapResponse& res)
 {
       string saveMapDirectory;
-
+    
       cout << "****************************************************" << endl;
       cout << "Saving map to pcd files ..." << endl;
       if(req.destination.empty()) saveMapDirectory = std::getenv("HOME") + savePCDDirectory;
@@ -1585,7 +1694,6 @@ void saveMap()
  */
 void publishGlobalMap()
 {
-
     /*** if path is too large, the rvis will crash ***/
     ros::Time timeLaserInfoStamp = ros::Time().fromSec(lidar_end_time);
     string odometryFrame = "camera_init";
@@ -1923,6 +2031,9 @@ int main(int argc, char **argv)
     
     // saveMap  发布地图保存服务
     srvSaveMap  = nh.advertiseService("/save_map" ,  &saveMapService);
+
+    // savePose  发布轨迹保存服务
+    srvSavePose  = nh.advertiseService("/save_pose" ,  &savePoseService);
 
     // 回环检测线程
     std::thread loopthread(&loopClosureThread);
