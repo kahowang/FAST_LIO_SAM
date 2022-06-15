@@ -194,7 +194,6 @@ pcl::PointCloud<PointTypePose>::Ptr cloudKeyPoses6D(new pcl::PointCloud<PointTyp
 pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D(new pcl::PointCloud<PointType>());
 pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>());
 
-pcl::PointCloud<PointTypePose>::Ptr test_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>());
 pcl::PointCloud<PointTypePose>::Ptr fastlio_unoptimized_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>()); //  存储fastlio 未优化的位姿
 // voxel filter paprams
 float odometrySurfLeafSize;
@@ -662,18 +661,6 @@ void saveKeyFramesAndFactor()
     thisPose6D.yaw = latestEstimate.rotation().yaw();
     thisPose6D.time = lidar_end_time;
     cloudKeyPoses6D->push_back(thisPose6D);
-
-    //test
-    PointTypePose temp_thisPose6D ;
-    temp_thisPose6D.x = transformTobeMapped[3] ;
-    temp_thisPose6D.y = transformTobeMapped[4] ;
-    temp_thisPose6D.z = transformTobeMapped[5] ;
-    temp_thisPose6D.roll = transformTobeMapped[0] ;
-    temp_thisPose6D.pitch = transformTobeMapped[1] ;
-    temp_thisPose6D.yaw = transformTobeMapped[2] ;
-    temp_thisPose6D.intensity = thisPose3D.intensity;
-    temp_thisPose6D.time = lidar_end_time;
-    test_cloudKeyPoses6D->push_back(temp_thisPose6D);
 
     // 位姿协方差
     poseCovariance = isam->marginalCovariance(isamCurrentEstimate.size() - 1);
@@ -1655,83 +1642,9 @@ bool saveMapService(fast_lio_sam::save_mapRequest& req, fast_lio_sam::save_mapRe
 
       // 注意：拼接地图时，keyframe是lidar系，而fastlio更新后的存到的cloudKeyPoses6D 关键帧位姿是body系下的，需要把
       //cloudKeyPoses6D  转换为T_world_lidar 。 T_world_lidar = T_world_body * T_body_lidar , T_body_lidar 是外参
-        Eigen::Isometry3d T_b_lidar(state_point.offset_R_L_I  );       //  获取外参
-        T_b_lidar.pretranslate(state_point.offset_T_L_I);        
-
-    //   for (int i = 0; i < (int)cloudKeyPoses6D->size(); i++) {
-
-    //         M3D rotation_matrix = Exp(double(cloudKeyPoses6D->points[i].roll), double(cloudKeyPoses6D->points[i].pitch), double(cloudKeyPoses6D->points[i].yaw));
-    //         V3D translate(cloudKeyPoses6D->points[i].x,cloudKeyPoses6D->points[i].y,cloudKeyPoses6D->points[i].z);
-    //         Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
-    //         T_w_b.pretranslate(translate);        //   world2body  translate
-
-    //         Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;
-    //         PointTypePose relative_w_lidar ;
-    //         relative_w_lidar.x = T_w_lidar.translation().x();
-    //         relative_w_lidar.y = T_w_lidar.translation().y();
-    //         relative_w_lidar.z = T_w_lidar.translation().z();
-
-    //         V3D rot_ang(Log(T_w_lidar.rotation()));
-    //         relative_w_lidar.roll = rot_ang(0);
-    //         relative_w_lidar.pitch = rot_ang(1);
-    //         relative_w_lidar.yaw = rot_ang(2);
-
-    //         //   *globalCornerCloud += *transformPointCloud(cornerCloudKeyFrames[i],  &cloudKeyPoses6D->points[i]);
-    //         *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &relative_w_lidar);
-    //         cout << "\r" << std::flush << "Processing feature cloud " << i << " of " << cloudKeyPoses6D->size() << " ...";
-    //   }
-
-
-
-        for (int i = 0; i < (int)test_cloudKeyPoses6D->size(); i++) {
-    /**********************************fastlio2 的存数据方法**********************************************/
-            // int size = surfCloudKeyFrames[i]->points.size();
-            // pcl::PointCloud<PointType>::Ptr laserCloudWorld(new pcl::PointCloud<PointType>(size,1));
-            // M3D rotation_matrix = Exp(double(test_cloudKeyPoses6D->points[i].roll), double(test_cloudKeyPoses6D->points[i].pitch), double(test_cloudKeyPoses6D->points[i].yaw));
-            // V3D pos(double(test_cloudKeyPoses6D->points[i].x),  double(test_cloudKeyPoses6D->points[i].y),  double(test_cloudKeyPoses6D->points[i].z)) ;
-            // // PointCloudXYZI::Ptr laserCloudWorld(new PointCloudXYZI(size, 1));
-            // for(int j = 0 ; j < size ; j++){
-            //      test_RGBpointBodyToWorld(&surfCloudKeyFrames[i]->points[j],  &laserCloudWorld->points[j], pos ,rotation_matrix);
-            // }
-            // *globalSurfCloud   += *laserCloudWorld;
-    /**********************************fastlio2 的存数据方法**********************************************/
-
-            // M3D rotation_matrix = Exp(double(test_cloudKeyPoses6D->points[i].roll), double(test_cloudKeyPoses6D->points[i].pitch), double(test_cloudKeyPoses6D->points[i].yaw));
-            // V3D translate(test_cloudKeyPoses6D->points[i].x,test_cloudKeyPoses6D->points[i].y,test_cloudKeyPoses6D->points[i].z);
-            // Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
-            // T_w_b.pretranslate(translate);        //   world2body  translate
-            // // std::cout << "T_b_lidar:   "  << T_b_lidar.matrix()  << std::endl;
-
-            // Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;
-            // PointTypePose relative_w_lidar ;
-            // relative_w_lidar.x = T_w_lidar.translation().x();
-            // relative_w_lidar.y = T_w_lidar.translation().y();
-            // relative_w_lidar.z = T_w_lidar.translation().z();
-
-            // V3D rot_ang(Log(T_w_lidar.rotation()));
-
-            // // Eigen::Vector3d eulerAngle=rotation_matrix.eulerAngles(2,1,0);
-
-            // relative_w_lidar.roll = rot_ang(0);
-            // relative_w_lidar.pitch = rot_ang(1);
-            // relative_w_lidar.yaw = rot_ang(2);
-
-            // relative_w_lidar.roll = eulerAngle[0];          
-            // relative_w_lidar.pitch = eulerAngle[1];
-            // relative_w_lidar.yaw = eulerAngle[2];
-
-
-            // pcl::PointCloud<PointType>::Ptr transformed_cloud(new pcl::PointCloud<PointType>());
-            // pcl::transformPointCloud (*surfCloudKeyFrames[i], *transformed_cloud, T_w_b.matrix());
-            // *globalSurfCloud   += *transformed_cloud ;
-
+      for (int i = 0; i < (int)cloudKeyPoses6D->size(); i++) {
             //   *globalCornerCloud += *transformPointCloud(cornerCloudKeyFrames[i],  &cloudKeyPoses6D->points[i]);
-            // std::cout << "****************************************"    << std::endl;
-            // std::cout << "T_w_lidar  "  << std::endl;
-            // std::cout << T_w_lidar.matrix()  << std::endl;
-            // *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &relative_w_lidar);
-              *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &test_cloudKeyPoses6D->points[i]);
-
+            *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &cloudKeyPoses6D->points[i]);
             cout << "\r" << std::flush << "Processing feature cloud " << i << " of " << cloudKeyPoses6D->size() << " ...";
       }
 
@@ -2271,15 +2184,8 @@ int main(int argc, char **argv)
             map_incremental();
             t5 = omp_get_wtime();
             /******* Publish points *******/
-            if (path_en)
+            if (path_en){
                 publish_path(pubPath);
-            if (scan_pub_en || pcd_save_en)
-                publish_frame_world(pubLaserCloudFull);        //   发布world系下的点云
-            if (scan_pub_en && scan_body_pub_en)
-                publish_frame_body(pubLaserCloudFull_body);         //  发布imu系下的点云
-            // 测试回环
-            if (path_en)
-            {
                 publish_path_update(pubPathUpdate);             //   发布经过isam2优化后的路径
                 static int jjj = 0;
                 jjj++;
@@ -2287,7 +2193,12 @@ int main(int argc, char **argv)
                 {
                     publishGlobalMap();             //  发布局部点云特征地图
                 }
-            };
+            }
+            if (scan_pub_en || pcd_save_en)
+                publish_frame_world(pubLaserCloudFull);        //   发布world系下的点云
+            if (scan_pub_en && scan_body_pub_en)
+                publish_frame_body(pubLaserCloudFull_body);         //  发布imu系下的点云
+
 
             // if(savePCD)  saveMap();
 
