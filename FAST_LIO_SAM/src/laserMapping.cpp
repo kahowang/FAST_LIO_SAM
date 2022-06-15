@@ -360,12 +360,32 @@ gtsam::Pose3 trans2gtsamPose(float transformIn[])
                         gtsam::Point3(transformIn[3], transformIn[4], transformIn[5]));
 }
 
+void getTranslationAndEulerAngles(Eigen::Affine3f  transCur, float* x, float* y, float* z, float* roll, float* pitch, float* yaw)
+{   
+    Eigen::Isometry3f   T ;
+    T.matrix() = transCur.matrix();
+     V3F rot_ang(Log(T.rotation()));    // 旋转矢量
+     V3F  translate = T.translation();    //  平移
+    *roll    = rot_ang(0);
+    *pitch   = rot_ang(1);
+    *yaw   = rot_ang(2);
+    *x = translate.x();
+    *y  = translate.y();
+    *z  = translate.z();
+}
+
 /**
  * Eigen格式的位姿变换
  */
 Eigen::Affine3f pclPointToAffine3f(PointTypePose thisPoint)
 {
-    return pcl::getTransformation(thisPoint.x, thisPoint.y, thisPoint.z, thisPoint.roll, thisPoint.pitch, thisPoint.yaw);
+    M3D rotation_matrix = Exp(double(thisPoint.roll), double(thisPoint.pitch), double(thisPoint.yaw));
+    V3D  translate(double(thisPoint.x), double(thisPoint.y), double(thisPoint.z));
+    Eigen::Isometry3d   T(rotation_matrix); 
+    T.pretranslate(translate) ;
+    Eigen::Affine3f transCur ;
+    transCur.matrix() = T.matrix().cast<float>();
+    return transCur ;
 }
 
 /**
@@ -373,7 +393,13 @@ Eigen::Affine3f pclPointToAffine3f(PointTypePose thisPoint)
  */
 Eigen::Affine3f trans2Affine3f(float transformIn[])
 {
-    return pcl::getTransformation(transformIn[3], transformIn[4], transformIn[5], transformIn[0], transformIn[1], transformIn[2]);
+    M3F rotation_matrix = Exp(transformIn[0], transformIn[1], transformIn[2]);
+    V3F  translate(transformIn[3], transformIn[4], transformIn[5]);
+    Eigen::Isometry3f   T(rotation_matrix); 
+    T.pretranslate(translate) ;
+    Eigen::Affine3f transCur ;
+    transCur.matrix() = T.matrix() ;
+    return transCur ;
 }
 
 /**
@@ -534,12 +560,12 @@ bool saveFrame()
     // 前一帧位姿
     Eigen::Affine3f transStart = pclPointToAffine3f(cloudKeyPoses6D->back());
     // 当前帧位姿
-    Eigen::Affine3f transFinal = pcl::getTransformation(transformTobeMapped[3], transformTobeMapped[4], transformTobeMapped[5],
-                                                        transformTobeMapped[0], transformTobeMapped[1], transformTobeMapped[2]);
+    Eigen::Affine3f transFinal = trans2Affine3f(transformTobeMapped);
+                    
     // 位姿变换增量
     Eigen::Affine3f transBetween = transStart.inverse() * transFinal;
     float x, y, z, roll, pitch, yaw;
-    pcl::getTranslationAndEulerAngles(transBetween, x, y, z, roll, pitch, yaw); //  获取上一帧 相对 当前帧的 位姿
+    getTranslationAndEulerAngles(transBetween, &x, &y, &z, &roll, &pitch, &yaw); //  获取上一帧 相对 当前帧的 位姿
 
     // 旋转和平移量都较小，当前帧不设为关键帧
     if (abs(roll) < surroundingkeyframeAddingAngleThreshold &&
@@ -558,7 +584,7 @@ void addOdomFactor()
     if (cloudKeyPoses3D->points.empty())
     {
         // 第一帧初始化先验因子
-        gtsam::noiseModel::Diagonal::shared_ptr priorNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) << 1e-12, 1e-12, 1e-12, 1e-12, 1e-12, 1e-12).finished()); // rad*rad, meter*meter
+        gtsam::noiseModel::Diagonal::shared_ptr priorNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) <<1e-12, 1e-12, 1e-12, 1e-12, 1e-12, 1e-12).finished()); // rad*rad, meter*meter   // indoor 1e-12, 1e-12, 1e-12, 1e-12, 1e-12, 1e-12    //  1e-2, 1e-2, M_PI*M_PI, 1e8, 1e8, 1e8
         gtSAMgraph.add(gtsam::PriorFactor<gtsam::Pose3>(0, trans2gtsamPose(transformTobeMapped), priorNoise));
         // 变量节点设置初始值
         initialEstimate.insert(0, trans2gtsamPose(transformTobeMapped));
@@ -676,7 +702,8 @@ void saveKeyFramesAndFactor()
     state_updated.pos = pos;
     state_updated.rot = q;
     state_point = state_updated; // 对state_point进行更新，state_point可视化用到
-    kf.change_x(state_updated);  //  对cur_pose 进行isam2优化后的修正
+    if(aLoopIsClosed == true )
+        kf.change_x(state_updated);  //  对cur_pose 进行isam2优化后的修正
 
     // TODO:  P的修正有待考察，按照yanliangwang的做法，修改了p，会跑飞
     esekfom::esekf<state_ikfom, 12, input_ikfom>::cov P_updated = kf.get_P(); // 获取当前的状态估计的协方差矩阵
@@ -943,12 +970,12 @@ void performLoopClosure()
     Eigen::Affine3f tWrong = pclPointToAffine3f(copy_cloudKeyPoses6D->points[loopKeyCur]);
     // 闭环优化后当前帧位姿
     Eigen::Affine3f tCorrect = correctionLidarFrame * tWrong;
-    pcl::getTranslationAndEulerAngles(tCorrect, x, y, z, roll, pitch, yaw);
+    getTranslationAndEulerAngles(tCorrect, &x, &y, &z, &roll, &pitch, &yaw);
     gtsam::Pose3 poseFrom = gtsam::Pose3(gtsam::Rot3::RzRyRx(roll, pitch, yaw), gtsam::Point3(x, y, z));
     // 闭环匹配帧的位姿
     gtsam::Pose3 poseTo = pclPointTogtsamPose3(copy_cloudKeyPoses6D->points[loopKeyPre]);
     gtsam::Vector Vector6(6);
-    float noiseScore = icp.getFitnessScore(); //  loop_clousre  noise from icp
+    float noiseScore = icp.getFitnessScore() ; //  loop_clousre  noise from icp
     Vector6 << noiseScore, noiseScore, noiseScore, noiseScore, noiseScore, noiseScore;
     gtsam::noiseModel::Diagonal::shared_ptr constraintNoise = gtsam::noiseModel::Diagonal::Variances(Vector6);
     std::cout << "loopNoiseQueue   =   " << noiseScore << std::endl;
@@ -1933,6 +1960,12 @@ int main(int argc, char **argv)
     nh.param<int>("numberOfCores", numberOfCores, 2);
     nh.param<double>("mappingProcessInterval", mappingProcessInterval, 0.15);
 
+    // save keyframes
+    nh.param<float>("surroundingkeyframeAddingDistThreshold", surroundingkeyframeAddingDistThreshold, 20.0);
+    nh.param<float>("surroundingkeyframeAddingAngleThreshold", surroundingkeyframeAddingAngleThreshold, 0.2);
+    nh.param<float>("surroundingKeyframeDensity", surroundingKeyframeDensity, 1.0);
+    nh.param<float>("surroundingKeyframeSearchRadius", surroundingKeyframeSearchRadius, 50.0);
+
     // loop clousre
     nh.param<bool>("loopClosureEnableFlag", loopClosureEnableFlag, false);
     nh.param<float>("loopClosureFrequency", loopClosureFrequency, 1.0);
@@ -1942,9 +1975,20 @@ int main(int argc, char **argv)
     nh.param<int>("historyKeyframeSearchNum", historyKeyframeSearchNum, 25);
     nh.param<float>("historyKeyframeFitnessScore", historyKeyframeFitnessScore, 0.3);
 
+    // Visualization
     nh.param<float>("globalMapVisualizationSearchRadius", globalMapVisualizationSearchRadius, 1e3);
     nh.param<float>("globalMapVisualizationPoseDensity", globalMapVisualizationPoseDensity, 10.0);
     nh.param<float>("globalMapVisualizationLeafSize", globalMapVisualizationLeafSize, 1.0);
+
+    // visual ikdtree map
+    nh.param<bool>("visulize_IkdtreeMap", visulize_IkdtreeMap, false);
+
+    // reconstruct ikdtree 
+    nh.param<bool>("recontructKdTree", recontructKdTree, false);
+
+    // savMap
+    nh.param<bool>("savePCD", savePCD, false);
+    nh.param<std::string>("savePCDDirectory", savePCDDirectory, "/Downloads/LOAM/");
 
     downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
     // downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
@@ -1957,18 +2001,8 @@ int main(int argc, char **argv)
     parameters.relinearizeSkip = 1;
     isam = new gtsam::ISAM2(parameters);
 
-    // visual ikdtree map
-    nh.param<bool>("visulize_IkdtreeMap", visulize_IkdtreeMap, false);
-
-    // reconstruct ikdtree 
-    nh.param<bool>("recontructKdTree", recontructKdTree, false);
-
     path.header.stamp = ros::Time::now();
     path.header.frame_id = "camera_init";
-
-    // savMap
-    nh.param<bool>("savePCD", savePCD, false);
-    nh.param<std::string>("savePCDDirectory", savePCDDirectory, "/Downloads/LOAM/");
 
     /*** variables definition ***/
     int effect_feat_num = 0, frame_num = 0;
@@ -2176,7 +2210,6 @@ int main(int argc, char **argv)
             saveKeyFramesAndFactor();
             // 更新因子图中所有变量节点的位姿，也就是所有历史关键帧的位姿，更新里程计轨迹， 重构ikdtree
             correctPoses();
-
             /******* Publish odometry *******/
             publish_odometry(pubOdomAftMapped);
             /*** add the feature points to map kdtree ***/
