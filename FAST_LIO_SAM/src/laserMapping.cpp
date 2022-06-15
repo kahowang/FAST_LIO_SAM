@@ -285,7 +285,6 @@ bool savePCD;               // 是否保存地图
 string savePCDDirectory;    // 保存路径
 
 
-
 /**
  * 更新里程计轨迹
  */
@@ -309,7 +308,7 @@ void updatePath(const PointTypePose &pose_in)
 }
 
 /**
- * 对点云cloudIn进行变换transformIn，返回结果点云
+ * 对点云cloudIn进行变换transformIn，返回结果点云， 修改liosam, 考虑到外参和旋转矢量的表示
  */
 pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::Ptr cloudIn, PointTypePose *transformIn)
 {
@@ -317,8 +316,20 @@ pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::
 
     int cloudSize = cloudIn->size();
     cloudOut->resize(cloudSize);
+    
+   // 注意：lio_sam 中的姿态用的euler表示，而fastlio存的姿态角是旋转矢量。而 pcl::getTransformation是将euler_angle 转换到rotation_matrix 不合适，注释
+  // Eigen::Affine3f transCur = pcl::getTransformation(transformIn->x, transformIn->y, transformIn->z, transformIn->roll, transformIn->pitch, transformIn->yaw);
+    Eigen::Isometry3d T_b_lidar(state_point.offset_R_L_I  );       //  获取  body2lidar  外参
+    T_b_lidar.pretranslate(state_point.offset_T_L_I);        
 
-    Eigen::Affine3f transCur = pcl::getTransformation(transformIn->x, transformIn->y, transformIn->z, transformIn->roll, transformIn->pitch, transformIn->yaw);
+    M3D rotation_matrix =Exp(double(transformIn->roll), double( transformIn->pitch), double(transformIn->yaw));     // 旋转矢量->旋转矩阵
+    V3D  translate(double(transformIn->x), double(transformIn->y), double(transformIn->z) );
+    Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
+    T_w_b.pretranslate(translate);        //   world2body  translate
+
+    Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;           //  T_w_lidar  转换矩阵
+
+    Eigen::Isometry3d transCur = T_w_lidar;        
 
 #pragma omp parallel for num_threads(numberOfCores)
     for (int i = 0; i < cloudSize; ++i)
@@ -855,26 +866,7 @@ void loopFindNearKeyframes(pcl::PointCloud<PointType>::Ptr &nearKeyframes, const
 
         // *nearKeyframes += *transformPointCloud(cornerCloudKeyFrames[keyNear], &copy_cloudKeyPoses6D->points[keyNear]);
         // 注意：cloudKeyPoses6D 存储的是 T_w_b , 而点云是lidar系下的，构建icp的submap时，需要通过外参数T_b_lidar 转换 , 参考pointBodyToWorld 的转换
-        Eigen::Isometry3d T_b_lidar(state_point.offset_R_L_I  );       //  exec R
-        T_b_lidar.pretranslate(state_point.offset_T_L_I);         //   exec t  
-
-        M3D rotation_matrix = Exp(double(copy_cloudKeyPoses6D->points[keyNear].roll), double(copy_cloudKeyPoses6D->points[keyNear].pitch), double(copy_cloudKeyPoses6D->points[keyNear].yaw));
-        V3D translate(copy_cloudKeyPoses6D->points[keyNear].x,copy_cloudKeyPoses6D->points[keyNear].y,copy_cloudKeyPoses6D->points[keyNear].z);
-        Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
-        T_w_b.pretranslate(translate);        //   world2body  translate
-
-        Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;
-        PointTypePose relative_w_lidar ;
-        relative_w_lidar.x = T_w_lidar.translation().x();
-        relative_w_lidar.y = T_w_lidar.translation().y();
-        relative_w_lidar.z = T_w_lidar.translation().z();
-
-        V3D rot_ang(Log(T_w_lidar.rotation()));
-        relative_w_lidar.roll = rot_ang(0);
-        relative_w_lidar.pitch = rot_ang(1);
-        relative_w_lidar.yaw = rot_ang(2);
-
-        *nearKeyframes += *transformPointCloud(surfCloudKeyFrames[keyNear], &relative_w_lidar); //  fast-lio 没有进行特征提取，默认点云就是surf
+        *nearKeyframes += *transformPointCloud(surfCloudKeyFrames[keyNear], &copy_cloudKeyPoses6D->points[keyNear]); //  fast-lio 没有进行特征提取，默认点云就是surf
     }
 
     if (nearKeyframes->empty())
@@ -1704,24 +1696,39 @@ bool saveMapService(fast_lio_sam::save_mapRequest& req, fast_lio_sam::save_mapRe
             // *globalSurfCloud   += *laserCloudWorld;
     /**********************************fastlio2 的存数据方法**********************************************/
 
-            M3D rotation_matrix = Exp(double(test_cloudKeyPoses6D->points[i].roll), double(test_cloudKeyPoses6D->points[i].pitch), double(test_cloudKeyPoses6D->points[i].yaw));
-            V3D translate(test_cloudKeyPoses6D->points[i].x,test_cloudKeyPoses6D->points[i].y,test_cloudKeyPoses6D->points[i].z);
-            Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
-            T_w_b.pretranslate(translate);        //   world2body  translate
-            std::cout << "T_b_lidar:   "  << T_b_lidar.matrix()  << std::endl;
+            // M3D rotation_matrix = Exp(double(test_cloudKeyPoses6D->points[i].roll), double(test_cloudKeyPoses6D->points[i].pitch), double(test_cloudKeyPoses6D->points[i].yaw));
+            // V3D translate(test_cloudKeyPoses6D->points[i].x,test_cloudKeyPoses6D->points[i].y,test_cloudKeyPoses6D->points[i].z);
+            // Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
+            // T_w_b.pretranslate(translate);        //   world2body  translate
+            // // std::cout << "T_b_lidar:   "  << T_b_lidar.matrix()  << std::endl;
 
-            Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;
-            PointTypePose relative_w_lidar ;
-            relative_w_lidar.x = T_w_lidar.translation().x();
-            relative_w_lidar.y = T_w_lidar.translation().y();
-            relative_w_lidar.z = T_w_lidar.translation().z();
+            // Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;
+            // PointTypePose relative_w_lidar ;
+            // relative_w_lidar.x = T_w_lidar.translation().x();
+            // relative_w_lidar.y = T_w_lidar.translation().y();
+            // relative_w_lidar.z = T_w_lidar.translation().z();
 
-            V3D rot_ang(Log(T_w_lidar.rotation()));
-            relative_w_lidar.roll = rot_ang(0);
-            relative_w_lidar.pitch = rot_ang(1);
-            relative_w_lidar.yaw = rot_ang(2);
+            // V3D rot_ang(Log(T_w_lidar.rotation()));
+
+            // // Eigen::Vector3d eulerAngle=rotation_matrix.eulerAngles(2,1,0);
+
+            // relative_w_lidar.roll = rot_ang(0);
+            // relative_w_lidar.pitch = rot_ang(1);
+            // relative_w_lidar.yaw = rot_ang(2);
+
+            // relative_w_lidar.roll = eulerAngle[0];          
+            // relative_w_lidar.pitch = eulerAngle[1];
+            // relative_w_lidar.yaw = eulerAngle[2];
+
+
+            // pcl::PointCloud<PointType>::Ptr transformed_cloud(new pcl::PointCloud<PointType>());
+            // pcl::transformPointCloud (*surfCloudKeyFrames[i], *transformed_cloud, T_w_b.matrix());
+            // *globalSurfCloud   += *transformed_cloud ;
 
             //   *globalCornerCloud += *transformPointCloud(cornerCloudKeyFrames[i],  &cloudKeyPoses6D->points[i]);
+            // std::cout << "****************************************"    << std::endl;
+            // std::cout << "T_w_lidar  "  << std::endl;
+            // std::cout << T_w_lidar.matrix()  << std::endl;
             // *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &relative_w_lidar);
               *globalSurfCloud   += *transformPointCloud(surfCloudKeyFrames[i],    &test_cloudKeyPoses6D->points[i]);
 
