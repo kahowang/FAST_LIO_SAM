@@ -267,6 +267,7 @@ gtsam::Values isamCurrentEstimate;
 Eigen::MatrixXd poseCovariance;
 
 ros::Publisher pubLaserCloudSurround;
+ros::Publisher pubOptimizedGlobalMap ;           //   发布最后优化的地图
 
 bool    recontructKdTree = false;
 int updateKdtreeCount = 0 ;        //  每100次更新一次
@@ -307,7 +308,7 @@ void updatePath(const PointTypePose &pose_in)
 }
 
 /**
- * 对点云cloudIn进行变换transformIn，返回结果点云， 修改liosam, 考虑到外参和旋转矢量的表示
+ * 对点云cloudIn进行变换transformIn，返回结果点云， 修改liosam, 考虑到外参的表示
  */
 pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::Ptr cloudIn, PointTypePose *transformIn)
 {
@@ -321,10 +322,9 @@ pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::
     Eigen::Isometry3d T_b_lidar(state_point.offset_R_L_I  );       //  获取  body2lidar  外参
     T_b_lidar.pretranslate(state_point.offset_T_L_I);        
 
-    M3D rotation_matrix =Exp(double(transformIn->roll), double( transformIn->pitch), double(transformIn->yaw));     // 旋转矢量->旋转矩阵
-    V3D  translate(double(transformIn->x), double(transformIn->y), double(transformIn->z) );
-    Eigen::Isometry3d T_w_b(rotation_matrix);          //   world2body  rotation
-    T_w_b.pretranslate(translate);        //   world2body  translate
+    Eigen::Affine3f T_w_b_ = pcl::getTransformation(transformIn->x, transformIn->y, transformIn->z, transformIn->roll, transformIn->pitch, transformIn->yaw);
+    Eigen::Isometry3d T_w_b ;          //   world2body  
+    T_w_b.matrix() = T_w_b_.matrix().cast<double>();
 
     Eigen::Isometry3d  T_w_lidar  =  T_w_b * T_b_lidar  ;           //  T_w_lidar  转换矩阵
 
@@ -360,32 +360,12 @@ gtsam::Pose3 trans2gtsamPose(float transformIn[])
                         gtsam::Point3(transformIn[3], transformIn[4], transformIn[5]));
 }
 
-void getTranslationAndEulerAngles(Eigen::Affine3f  transCur, float* x, float* y, float* z, float* roll, float* pitch, float* yaw)
-{   
-    Eigen::Isometry3f   T ;
-    T.matrix() = transCur.matrix();
-     V3F rot_ang(Log(T.rotation()));    // 旋转矢量
-     V3F  translate = T.translation();    //  平移
-    *roll    = rot_ang(0);
-    *pitch   = rot_ang(1);
-    *yaw   = rot_ang(2);
-    *x = translate.x();
-    *y  = translate.y();
-    *z  = translate.z();
-}
-
 /**
  * Eigen格式的位姿变换
  */
 Eigen::Affine3f pclPointToAffine3f(PointTypePose thisPoint)
 {
-    M3D rotation_matrix = Exp(double(thisPoint.roll), double(thisPoint.pitch), double(thisPoint.yaw));
-    V3D  translate(double(thisPoint.x), double(thisPoint.y), double(thisPoint.z));
-    Eigen::Isometry3d   T(rotation_matrix); 
-    T.pretranslate(translate) ;
-    Eigen::Affine3f transCur ;
-    transCur.matrix() = T.matrix().cast<float>();
-    return transCur ;
+    return pcl::getTransformation(thisPoint.x, thisPoint.y, thisPoint.z, thisPoint.roll, thisPoint.pitch, thisPoint.yaw);
 }
 
 /**
@@ -393,13 +373,7 @@ Eigen::Affine3f pclPointToAffine3f(PointTypePose thisPoint)
  */
 Eigen::Affine3f trans2Affine3f(float transformIn[])
 {
-    M3F rotation_matrix = Exp(transformIn[0], transformIn[1], transformIn[2]);
-    V3F  translate(transformIn[3], transformIn[4], transformIn[5]);
-    Eigen::Isometry3f   T(rotation_matrix); 
-    T.pretranslate(translate) ;
-    Eigen::Affine3f transCur ;
-    transCur.matrix() = T.matrix() ;
-    return transCur ;
+    return pcl::getTransformation(transformIn[3], transformIn[4], transformIn[5], transformIn[0], transformIn[1], transformIn[2]);
 }
 
 /**
@@ -471,13 +445,36 @@ void allocateMemory()
     }
 }
 
+//  eulerAngle 2 Quaterniond
+Eigen::Quaterniond  EulerToQuat(float roll_, float pitch_, float yaw_)
+{
+    Eigen::Quaterniond q ;            //   四元数 q 和 -q 是相等的
+    Eigen::AngleAxisd roll(double(roll_), Eigen::Vector3d::UnitX());
+    Eigen::AngleAxisd pitch(double(pitch_), Eigen::Vector3d::UnitY());
+    Eigen::AngleAxisd yaw(double(yaw_), Eigen::Vector3d::UnitZ());
+    q = yaw * pitch * roll ;
+    q.normalize();
+    return q ;
+}
+
 // 将更新的pose赋值到 transformTobeMapped
 void getCurPose(state_ikfom cur_state)
 {
-    V3D rot_ang(Log(cur_state.rot.toRotationMatrix())); //   轴角
-    transformTobeMapped[0] = rot_ang(0);                //  roll
-    transformTobeMapped[1] = rot_ang(1);                //  pitch
-    transformTobeMapped[2] = rot_ang(2);                //  yaw
+    //  欧拉角是没有群的性质，所以从SO3还是一般的rotation matrix 转换过来的结果一样
+    Eigen::Vector3d eulerAngle = cur_state.rot.matrix().eulerAngles(2,1,0);        //  yaw pitch roll  单位：弧度
+    // V3D eulerAngle  =  SO3ToEuler(cur_state.rot)/57.3 ;     //   fastlio 自带  roll pitch yaw  单位: 度，旋转顺序 zyx
+
+    // V3D eulerAngle_  =  SO3ToEuler(cur_state.rot) ;     //   fastlio 自带  roll pitch yaw  单位: 度，旋转顺序 zyx
+    // Eigen::Quaterniond q ;            //   四元数 q 和 -q 是相等的
+    // Eigen::AngleAxisd roll(eulerAngle_(0)/57.3, Eigen::Vector3d::UnitX());
+    // Eigen::AngleAxisd pitch(eulerAngle_(1)/57.3, Eigen::Vector3d::UnitY());
+    // Eigen::AngleAxisd yaw(eulerAngle_(2)/57.3, Eigen::Vector3d::UnitZ());
+    // q = yaw * pitch * roll ;
+    // q.normalize();
+    
+    transformTobeMapped[0] = eulerAngle(2);                //  roll
+    transformTobeMapped[1] = eulerAngle(1);                //  pitch
+    transformTobeMapped[2] = eulerAngle(0);                //  yaw
     transformTobeMapped[3] = cur_state.pos(0);          //  x
     transformTobeMapped[4] = cur_state.pos(1);          //   y
     transformTobeMapped[5] = cur_state.pos(2);          // z
@@ -561,11 +558,13 @@ bool saveFrame()
     Eigen::Affine3f transStart = pclPointToAffine3f(cloudKeyPoses6D->back());
     // 当前帧位姿
     Eigen::Affine3f transFinal = trans2Affine3f(transformTobeMapped);
+    // Eigen::Affine3f transFinal = pcl::getTransformation(transformTobeMapped[3], transformTobeMapped[4], transformTobeMapped[5],
+    //                                                     transformTobeMapped[0], transformTobeMapped[1], transformTobeMapped[2]);
                     
     // 位姿变换增量
     Eigen::Affine3f transBetween = transStart.inverse() * transFinal;
     float x, y, z, roll, pitch, yaw;
-    getTranslationAndEulerAngles(transBetween, &x, &y, &z, &roll, &pitch, &yaw); //  获取上一帧 相对 当前帧的 位姿
+    pcl::getTranslationAndEulerAngles(transBetween, x, y, z, roll, pitch, yaw); //  获取上一帧 相对 当前帧的 位姿
 
     // 旋转和平移量都较小，当前帧不设为关键帧
     if (abs(roll) < surroundingkeyframeAddingAngleThreshold &&
@@ -694,34 +693,24 @@ void saveKeyFramesAndFactor()
     // ESKF状态和方差  更新
     state_ikfom state_updated = kf.get_x(); //  获取cur_pose (还没修正)
     Eigen::Vector3d pos(latestEstimate.translation().x(), latestEstimate.translation().y(), latestEstimate.translation().z());
+    Eigen::Quaterniond q = EulerToQuat(latestEstimate.rotation().roll(), latestEstimate.rotation().pitch(), latestEstimate.rotation().yaw());
 
-    M3D rotation_matrix = Exp(latestEstimate.rotation().roll(), latestEstimate.rotation().pitch(), latestEstimate.rotation().yaw());
-    Eigen::Quaterniond q(rotation_matrix);
-    q.normalize(); //  归一化
-
+    //  更新状态量
     state_updated.pos = pos;
-    state_updated.rot = q;
+    state_updated.rot =  q;
     state_point = state_updated; // 对state_point进行更新，state_point可视化用到
-    if(aLoopIsClosed == true )
+    // if(aLoopIsClosed == true )
         kf.change_x(state_updated);  //  对cur_pose 进行isam2优化后的修正
 
     // TODO:  P的修正有待考察，按照yanliangwang的做法，修改了p，会跑飞
-    esekfom::esekf<state_ikfom, 12, input_ikfom>::cov P_updated = kf.get_P(); // 获取当前的状态估计的协方差矩阵
-    P_updated.setIdentity();
-    P_updated(6, 6) = P_updated(7, 7) = P_updated(8, 8) = 0.00001;
-    P_updated(9, 9) = P_updated(10, 10) = P_updated(11, 11) = 0.00001;
-    P_updated(15, 15) = P_updated(16, 16) = P_updated(17, 17) = 0.0001;
-    P_updated(18, 18) = P_updated(19, 19) = P_updated(20, 20) = 0.001;
-    P_updated(21, 21) = P_updated(22, 22) = 0.00001;
+    // esekfom::esekf<state_ikfom, 12, input_ikfom>::cov P_updated = kf.get_P(); // 获取当前的状态估计的协方差矩阵
+    // P_updated.setIdentity();
+    // P_updated(6, 6) = P_updated(7, 7) = P_updated(8, 8) = 0.00001;
+    // P_updated(9, 9) = P_updated(10, 10) = P_updated(11, 11) = 0.00001;
+    // P_updated(15, 15) = P_updated(16, 16) = P_updated(17, 17) = 0.0001;
+    // P_updated(18, 18) = P_updated(19, 19) = P_updated(20, 20) = 0.001;
+    // P_updated(21, 21) = P_updated(22, 22) = 0.00001;
     // kf.change_P(P_updated);
-
-    // transformTobeMapped更新当前帧位姿
-    transformTobeMapped[0] = latestEstimate.rotation().roll();
-    transformTobeMapped[1] = latestEstimate.rotation().pitch();
-    transformTobeMapped[2] = latestEstimate.rotation().yaw();
-    transformTobeMapped[3] = latestEstimate.translation().x();
-    transformTobeMapped[4] = latestEstimate.translation().y();
-    transformTobeMapped[5] = latestEstimate.translation().z();
 
     // 当前帧激光角点、平面点，降采样集合
     // pcl::PointCloud<PointType>::Ptr thisCornerKeyFrame(new pcl::PointCloud<PointType>());
@@ -784,7 +773,7 @@ void recontructIKdTree(){
         int featsFromMapNum = ikdtree.validnum();
         kdtree_size_st = ikdtree.size();
         std::cout << "featsFromMapNum  =  "   << featsFromMapNum   <<  "\t" << " kdtree_size_st   =  "  <<  kdtree_size_st  << std::endl;
-    } 
+    }
         updateKdtreeCount ++ ; 
 }
 
@@ -970,7 +959,7 @@ void performLoopClosure()
     Eigen::Affine3f tWrong = pclPointToAffine3f(copy_cloudKeyPoses6D->points[loopKeyCur]);
     // 闭环优化后当前帧位姿
     Eigen::Affine3f tCorrect = correctionLidarFrame * tWrong;
-    getTranslationAndEulerAngles(tCorrect, &x, &y, &z, &roll, &pitch, &yaw);
+    pcl::getTranslationAndEulerAngles(tCorrect, x, y, z, roll, pitch, yaw); //  获取上一帧 相对 当前帧的 位姿
     gtsam::Pose3 poseFrom = gtsam::Pose3(gtsam::Rot3::RzRyRx(roll, pitch, yaw), gtsam::Point3(x, y, z));
     // 闭环匹配帧的位姿
     gtsam::Pose3 poseTo = pclPointTogtsamPose3(copy_cloudKeyPoses6D->points[loopKeyPre]);
@@ -1692,22 +1681,28 @@ bool saveMapService(fast_lio_sam::save_mapRequest& req, fast_lio_sam::save_mapRe
       }
       else
       {
+        //   downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
+         downSizeFilterSurf.setInputCloud(globalSurfCloud);
+         downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
+         downSizeFilterSurf.filter(*globalSurfCloudDS);
         // pcl::io::savePCDFileBinary(saveMapDirectory + "/CornerMap.pcd", *globalCornerCloud);       
-        pcl::io::savePCDFileBinary(saveMapDirectory + "/SurfMap.pcd", *globalSurfCloud);           //  稠密点云地图
+        // pcl::io::savePCDFileBinary(saveMapDirectory + "/SurfMap.pcd", *globalSurfCloud);           //  稠密点云地图
       }
 
       // 保存到一起，全局关键帧特征点集合
     //   *globalMapCloud += *globalCornerCloud;
       *globalMapCloud += *globalSurfCloud;
-
-      int ret = pcl::io::savePCDFileBinary(saveMapDirectory + "/GlobalMap.pcd", *globalMapCloud);
+      pcl::io::savePCDFileBinary(saveMapDirectory + "/filterGlobalMap.pcd", *globalSurfCloudDS);       //  滤波后地图
+      int ret = pcl::io::savePCDFileBinary(saveMapDirectory + "/GlobalMap.pcd", *globalMapCloud);       //  稠密地图
       res.success = ret == 0;
-
-    //   downSizeFilterCorner.setLeafSize(mappingCornerLeafSize, mappingCornerLeafSize, mappingCornerLeafSize);
-      downSizeFilterSurf.setLeafSize(mappingSurfLeafSize, mappingSurfLeafSize, mappingSurfLeafSize);
 
       cout << "****************************************************" << endl;
       cout << "Saving map to pcd files completed\n" << endl;
+
+      // visial optimize global map on viz
+    ros::Time timeLaserInfoStamp = ros::Time().fromSec(lidar_end_time);
+    string odometryFrame = "camera_init";
+    publishCloud(&pubOptimizedGlobalMap, globalSurfCloudDS, timeLaserInfoStamp, odometryFrame);
 
       return true;
 }
@@ -2060,7 +2055,8 @@ int main(int argc, char **argv)
     ros::Publisher pubPath = nh.advertise<nav_msgs::Path>("/path", 1e00000);
 
     ros::Publisher pubPathUpdate = nh.advertise<nav_msgs::Path>("fast_lio_sam/path_update", 100000);                   //  isam更新后的path
-    pubLaserCloudSurround = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/map_global", 1); // 发布局部关键帧map的特征点云
+    pubLaserCloudSurround = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/keyframe_submap", 1); // 发布局部关键帧map的特征点云
+    pubOptimizedGlobalMap = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/map_global_optimized", 1); // 发布局部关键帧map的特征点云
 
     // loop clousre
     // 发布闭环匹配关键帧局部map
@@ -2214,7 +2210,7 @@ int main(int argc, char **argv)
             publish_odometry(pubOdomAftMapped);
             /*** add the feature points to map kdtree ***/
             t3 = omp_get_wtime();
-            map_incremental();
+                map_incremental();
             t5 = omp_get_wtime();
             /******* Publish points *******/
             if (path_en){
