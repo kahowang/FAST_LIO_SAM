@@ -464,15 +464,11 @@ void getCurPose(state_ikfom cur_state)
     Eigen::Vector3d eulerAngle = cur_state.rot.matrix().eulerAngles(2,1,0);        //  yaw pitch roll  单位：弧度
     // V3D eulerAngle  =  SO3ToEuler(cur_state.rot)/57.3 ;     //   fastlio 自带  roll pitch yaw  单位: 度，旋转顺序 zyx
 
-    // V3D eulerAngle_  =  SO3ToEuler(cur_state.rot) ;     //   fastlio 自带  roll pitch yaw  单位: 度，旋转顺序 zyx
-    // Eigen::Quaterniond q ;            //   四元数 q 和 -q 是相等的
-    // Eigen::AngleAxisd roll(eulerAngle_(0)/57.3, Eigen::Vector3d::UnitX());
-    // Eigen::AngleAxisd pitch(eulerAngle_(1)/57.3, Eigen::Vector3d::UnitY());
-    // Eigen::AngleAxisd yaw(eulerAngle_(2)/57.3, Eigen::Vector3d::UnitZ());
-    // q = yaw * pitch * roll ;
-    // q.normalize();
+    // transformTobeMapped[0] = eulerAngle(0);                //  roll     使用 SO3ToEuler 方法时，顺序是 rpy
+    // transformTobeMapped[1] = eulerAngle(1);                //  pitch
+    // transformTobeMapped[2] = eulerAngle(2);                //  yaw
     
-    transformTobeMapped[0] = eulerAngle(2);                //  roll
+    transformTobeMapped[0] = eulerAngle(2);                //  roll  使用 eulerAngles(2,1,0) 方法时，顺序是 ypr
     transformTobeMapped[1] = eulerAngle(1);                //  pitch
     transformTobeMapped[2] = eulerAngle(0);                //  yaw
     transformTobeMapped[3] = cur_state.pos(0);          //  x
