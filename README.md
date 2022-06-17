@@ -42,7 +42,7 @@ catkin_make
 
 #### 1 .For indoor dataset 
 
-dataset is from yanliang-wang ,[dataset](https://drive.google.com/file/d/1NGTN3aULoTMp3raF75LwMu-OUtzUx-zX/view?usp=sharing) which includes `/velodyne_points`(10Hz) and `/imu/data`(400Hz).
+dataset is from yanliang-wang 's [FAST_LIO_LC](https://github.com/yanliang-wang/FAST_LIO_LC)  ,[dataset](https://drive.google.com/file/d/1NGTN3aULoTMp3raF75LwMu-OUtzUx-zX/view?usp=sharing) which includes `/velodyne_points`(10Hz) and `/imu/data`(400Hz).
 
 ```shell
 roslaunch fast_lio_sam mapping_velodyne16.launch
@@ -50,8 +50,9 @@ rosbag play  T3F2-2021-08-02-15-00-12.bag
 ```
 
 <p align ="center">
-<img src = "./pic/car.gif "  alt ="car" width = 40%  height =30%; "/>
+<img src = "./FAST_LIO_SAM/pic/indoor.gif "  alt ="car" width = 60%  height =60%; "/>
 </p>
+
 
 #### 2 .For outdoor dataset
 
@@ -61,6 +62,11 @@ dataset is from [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM) **Walking datas
 roslaunch fast_lio_sam mapping_velodyne16_lio_sam_dataset.launch
 rosbag  play  walking_dataset.bag
 ```
+
+<div align="left">
+<img src = "./FAST_LIO_SAM/pic/outdoor_1.gif "  alt ="outdoor"  width=49.6%  height =60%; "/>
+<img src = "./FAST_LIO_SAM/pic/outdoor_2.gif "  alt ="outdoor"  width=49.6%  height =60%; "/>
+</div>
 
 ### 3.save_map
 
@@ -116,7 +122,7 @@ savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home
 
 ### Use GPS：
 
-#### woring
+#### working
 
 ## Attention:
 
