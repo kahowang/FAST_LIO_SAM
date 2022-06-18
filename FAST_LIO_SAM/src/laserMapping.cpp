@@ -94,9 +94,13 @@
 #include <gtsam/nonlinear/Marginals.h>
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/inference/Symbol.h>
-
 #include <gtsam/nonlinear/ISAM2.h>
 
+// gnss
+#include "GNSS_Processing.hpp"
+#include "sensor_msgs/NavSatFix.h"
+
+// save map
 #include "fast_lio_sam/save_map.h"
 #include "fast_lio_sam/save_pose.h"
 
@@ -272,6 +276,27 @@ ros::Publisher pubOptimizedGlobalMap ;           //   发布最后优化的地�
 bool    recontructKdTree = false;
 int updateKdtreeCount = 0 ;        //  每100次更新一次
 bool visulize_IkdtreeMap = false;            //  visual iktree submap
+
+// gnss
+double last_timestamp_gnss = -1.0 ;
+deque<nav_msgs::Odometry> gnss_buffer;
+geometry_msgs::PoseStamped msg_gnss_pose;
+string gnss_topic ;
+bool useImuHeadingInitialization;   
+bool useGpsElevation;             //  是否使用gps高层优化
+float gpsCovThreshold;          //   gps方向角和高度差的协方差阈值
+float poseCovThreshold;       //  位姿协方差阈值  from isam2
+
+M3D Gnss_R_wrt_Lidar(Eye3d) ;         // gnss  与 imu 的外参
+V3D Gnss_T_wrt_Lidar(Zero3d);
+bool gnss_inited = false ;                        //  是否完成gnss初始化
+shared_ptr<GnssProcess> p_gnss(new GnssProcess());
+GnssProcess gnss_data;
+ros::Publisher pubGnssPath ;
+nav_msgs::Path gps_path ;
+vector<double>       extrinT_Gnss2Lidar(3, 0.0);
+vector<double>       extrinR_Gnss2Lidar(9, 0.0);
+
 
 // global map visualization radius
 float globalMapVisualizationSearchRadius;
@@ -623,6 +648,88 @@ void addLoopFactor()
     aLoopIsClosed = true;
 }
 
+/**
+ * 添加GPS因子
+*/
+void addGPSFactor()
+{
+    if (gnss_buffer.empty())
+        return;
+    // 如果没有关键帧，或者首尾关键帧距离小于5m，不添加gps因子
+    if (cloudKeyPoses3D->points.empty())
+        return;
+    else
+    {
+        if (pointDistance(cloudKeyPoses3D->front(), cloudKeyPoses3D->back()) < 5.0)
+            return;
+    }
+    // 位姿协方差很小，没必要加入GPS数据进行校正
+    if (poseCovariance(3,3) < poseCovThreshold && poseCovariance(4,4) < poseCovThreshold)
+        return;
+    static PointType lastGPSPoint;      // 最新的gps数据
+    
+    while (!gnss_buffer.empty())
+    {
+        // 删除当前帧0.2s之前的里程计
+        if (gnss_buffer.front().header.stamp.toSec() < lidar_end_time - 0.2)
+        {
+            gnss_buffer.pop_front();
+        }
+        // 超过当前帧0.2s之后，退出
+        else if (gnss_buffer.front().header.stamp.toSec() > lidar_end_time + 0.2)
+        {
+            break;
+        }
+        else
+        {
+            nav_msgs::Odometry thisGPS = gnss_buffer.front();
+            gnss_buffer.pop_front();
+
+            // GPS噪声协方差太大，不能用
+            float noise_x = thisGPS.pose.covariance[0];         //  x 方向的协方差
+            float noise_y = thisGPS.pose.covariance[7];
+            float noise_z = thisGPS.pose.covariance[14];      //   z(高层)方向的协方差
+            if (noise_x > gpsCovThreshold || noise_y > gpsCovThreshold)
+                continue;
+
+            // GPS里程计位置
+            float gps_x = thisGPS.pose.pose.position.x;
+            float gps_y = thisGPS.pose.pose.position.y;
+            float gps_z = thisGPS.pose.pose.position.z;
+            if (!useGpsElevation)           //  是否使用gps的高度
+            {
+                gps_z = transformTobeMapped[5];
+                noise_z = 0.01;
+            }
+
+            // (0,0,0)无效数据
+            if (abs(gps_x) < 1e-6 && abs(gps_y) < 1e-6)
+                continue;
+
+            // 每隔5m添加一个GPS里程计
+            PointType curGPSPoint;
+            curGPSPoint.x = gps_x;
+            curGPSPoint.y = gps_y;
+            curGPSPoint.z = gps_z;
+            if (pointDistance(curGPSPoint, lastGPSPoint) < 5.0)
+                continue;
+            else
+                lastGPSPoint = curGPSPoint;
+
+            // 添加GPS因子
+            gtsam::Vector Vector3(3);
+            Vector3 << max(noise_x, 1.0f), max(noise_y, 1.0f), max(noise_z, 1.0f);
+            gtsam::noiseModel::Diagonal::shared_ptr gps_noise = gtsam::noiseModel::Diagonal::Variances(Vector3);
+            gtsam::GPSFactor gps_factor(cloudKeyPoses3D->size(), gtsam::Point3(gps_x, gps_y, gps_z), gps_noise);
+            gtSAMgraph.add(gps_factor);
+
+            aLoopIsClosed = true;
+            ROS_INFO("GPS Factor Added");
+            break;
+        }
+    }
+}
+
 void saveKeyFramesAndFactor()
 {
     //  计算当前帧与前一帧位姿变换，如果变化太小，不设为关键帧，反之设为关键帧
@@ -696,7 +803,7 @@ void saveKeyFramesAndFactor()
     state_updated.rot =  q;
     state_point = state_updated; // 对state_point进行更新，state_point可视化用到
     // if(aLoopIsClosed == true )
-        kf.change_x(state_updated);  //  对cur_pose 进行isam2优化后的修正
+        // kf.change_x(state_updated);  //  对cur_pose 进行isam2优化后的修正
 
     // TODO:  P的修正有待考察，按照yanliangwang的做法，修改了p，会跑飞
     // esekfom::esekf<state_ikfom, 12, input_ikfom>::cov P_updated = kf.get_P(); // 获取当前的状态估计的协方差矩阵
@@ -722,7 +829,7 @@ void saveKeyFramesAndFactor()
 }
 
 void recontructIKdTree(){
-    if(recontructKdTree  &&  updateKdtreeCount >  5){
+    if(recontructKdTree  &&  updateKdtreeCount >  0){
         /*** if path is too large, the rvis will crash ***/
         pcl::KdTreeFLANN<PointType>::Ptr kdtreeGlobalMapPoses(new pcl::KdTreeFLANN<PointType>());
         pcl::PointCloud<PointType>::Ptr subMapKeyPoses(new pcl::PointCloud<PointType>());
@@ -1252,6 +1359,75 @@ void imu_cbk(const sensor_msgs::Imu::ConstPtr &msg_in)
     sig_buffer.notify_all();
 }
 
+void gnss_cbk(const sensor_msgs::NavSatFixConstPtr& msg_in)
+{
+    //  ROS_INFO("GNSS DATA IN ");
+    double timestamp = msg_in->header.stamp.toSec();
+
+    mtx_buffer.lock();
+
+    // 没有进行时间纠正
+    if (timestamp < last_timestamp_gnss)
+    {
+        ROS_WARN("gnss loop back, clear buffer");
+        gnss_buffer.clear();
+    }
+
+    last_timestamp_gnss = timestamp;
+
+    // convert ROS NavSatFix to GeographicLib compatible GNSS message:
+    gnss_data.time = msg_in->header.stamp.toSec();
+    gnss_data.status = msg_in->status.status;
+    gnss_data.service = msg_in->status.service;
+    gnss_data.pose_cov[0] = msg_in->position_covariance[0];
+    gnss_data.pose_cov[1] = msg_in->position_covariance[4];
+    gnss_data.pose_cov[2] = msg_in->position_covariance[8];
+
+    mtx_buffer.unlock();
+   
+    if(!gnss_inited){           //  初始化位置
+        gnss_data.InitOriginPosition(msg_in->latitude, msg_in->longitude, msg_in->altitude) ; 
+        gnss_inited = true ;
+    }else{                               //   初始化完成
+        gnss_data.UpdateXYZ(msg_in->latitude, msg_in->longitude, msg_in->altitude) ;             //  WGS84 -> ENU
+        nav_msgs::Odometry gnss_data_enu ;
+        // add new message to buffer:
+        gnss_data_enu.header.stamp = ros::Time().fromSec(gnss_data.time);
+        gnss_data_enu.pose.pose.position.x =  gnss_data.local_N ;  //gnss_data.local_E ;
+        gnss_data_enu.pose.pose.position.y =  gnss_data.local_E ;//gnss_data.local_N;
+        gnss_data_enu.pose.pose.position.z =  gnss_data.local_U;
+
+        gnss_data_enu.pose.pose.orientation.x =  geoQuat.x ;                //  gnss 的姿态不可观，所以姿态只用于可视化，取自imu
+        gnss_data_enu.pose.pose.orientation.y =  geoQuat.y;
+        gnss_data_enu.pose.pose.orientation.z =  geoQuat.z;
+        gnss_data_enu.pose.pose.orientation.w =  geoQuat.w;
+
+        gnss_data_enu.pose.covariance[0] = gnss_data.pose_cov[0] ;
+        gnss_data_enu.pose.covariance[7] = gnss_data.pose_cov[1] ;
+        gnss_data_enu.pose.covariance[14] = gnss_data.pose_cov[2] ;
+
+        gnss_buffer.push_back(gnss_data_enu);
+
+        // visial gnss path in rviz:
+        msg_gnss_pose.header.frame_id = "camera_init";
+        msg_gnss_pose.header.stamp = ros::Time().fromSec(gnss_data.time);
+        // Eigen::Vector3d gnss_pose_ (gnss_data.local_E, gnss_data.local_N, - gnss_data.local_U); 
+        Eigen::Vector3d gnss_pose_ (gnss_data.local_N, gnss_data.local_E, - gnss_data.local_U); 
+
+        Eigen::Isometry3d gnss_to_lidar(Gnss_R_wrt_Lidar) ;
+        gnss_to_lidar.pretranslate(Gnss_T_wrt_Lidar);
+        gnss_pose_ =  gnss_to_lidar  *  gnss_pose_ ;                    //  gnss 转到 lidar 系下
+
+        msg_gnss_pose.pose.position.x = gnss_pose_(0,3) ;  
+        msg_gnss_pose.pose.position.y = gnss_pose_(1,3) ;
+        msg_gnss_pose.pose.position.z = gnss_pose_(2,3) ;
+
+        gps_path.poses.push_back(msg_gnss_pose);
+    }
+
+
+}
+
 double lidar_mean_scantime = 0.0;
 int scan_num = 0;
 bool sync_packages(MeasureGroup &meas)
@@ -1560,6 +1736,20 @@ void publish_path_update(const ros::Publisher pubPath)
             globalPath.header.frame_id = odometryFrame;
             pubPath.publish(globalPath);
         }
+    }
+}
+
+//  发布gnss 轨迹
+void publish_gnss_path(const ros::Publisher pubPath)
+{
+    gps_path.header.stamp = ros::Time().fromSec(lidar_end_time);
+    gps_path.header.frame_id = "camera_init";
+
+    static int jjj = 0;
+    jjj++;
+    if (jjj % 10 == 0) 
+    {
+        pubPath.publish(gps_path);
     }
 }
 
@@ -1966,6 +2156,16 @@ int main(int argc, char **argv)
     nh.param<int>("historyKeyframeSearchNum", historyKeyframeSearchNum, 25);
     nh.param<float>("historyKeyframeFitnessScore", historyKeyframeFitnessScore, 0.3);
 
+    // gnss
+    nh.param<string>("common/gnss_topic", gnss_topic,"/gps/fix");
+    nh.param<vector<double>>("mapping/extrinR_Gnss2Lidar", extrinR_Gnss2Lidar, vector<double>());
+    nh.param<vector<double>>("mapping/extrinT_Gnss2Lidar", extrinT_Gnss2Lidar, vector<double>());
+    nh.param<bool>("useImuHeadingInitialization", useImuHeadingInitialization, false);
+    nh.param<bool>("useGpsElevation", useGpsElevation, false);
+    nh.param<float>("gpsCovThreshold", gpsCovThreshold, 2.0);
+    nh.param<float>("poseCovThreshold", poseCovThreshold, 25.0);
+
+
     // Visualization
     nh.param<float>("globalMapVisualizationSearchRadius", globalMapVisualizationSearchRadius, 1e3);
     nh.param<float>("globalMapVisualizationPoseDensity", globalMapVisualizationPoseDensity, 10.0);
@@ -2021,6 +2221,10 @@ int main(int argc, char **argv)
     p_imu->set_gyr_bias_cov(V3D(b_gyr_cov, b_gyr_cov, b_gyr_cov));
     p_imu->set_acc_bias_cov(V3D(b_acc_cov, b_acc_cov, b_acc_cov));
 
+    //设置gnss外参数
+    Gnss_T_wrt_Lidar<<VEC_FROM_ARRAY(extrinT_Gnss2Lidar);
+    Gnss_R_wrt_Lidar<<MAT_FROM_ARRAY(extrinR_Gnss2Lidar);
+
     double epsi[23] = {0.001};
     fill(epsi, epsi + 23, 0.001);
     ///初始化，其中h_share_model定义了·平面搜索和残差计算
@@ -2051,6 +2255,7 @@ int main(int argc, char **argv)
     ros::Publisher pubPath = nh.advertise<nav_msgs::Path>("/path", 1e00000);
 
     ros::Publisher pubPathUpdate = nh.advertise<nav_msgs::Path>("fast_lio_sam/path_update", 100000);                   //  isam更新后的path
+    pubGnssPath = nh.advertise<nav_msgs::Path>("/gnss_path", 100000);
     pubLaserCloudSurround = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/keyframe_submap", 1); // 发布局部关键帧map的特征点云
     pubOptimizedGlobalMap = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/map_global_optimized", 1); // 发布局部关键帧map的特征点云
 
@@ -2061,6 +2266,9 @@ int main(int argc, char **argv)
     pubIcpKeyFrames = nh.advertise<sensor_msgs::PointCloud2>("fast_lio_sam/mapping/icp_loop_closure_corrected_cloud", 1);
     // 发布闭环边，rviz中表现为闭环帧之间的连线
     pubLoopConstraintEdge = nh.advertise<visualization_msgs::MarkerArray>("/fast_lio_sam/mapping/loop_closure_constraints", 1);
+
+    // gnss
+    ros::Subscriber sub_gnss = nh.subscribe(gnss_topic, 200000, gnss_cbk);
     
     // saveMap  发布地图保存服务
     srvSaveMap  = nh.advertiseService("/save_map" ,  &saveMapService);
@@ -2211,6 +2419,7 @@ int main(int argc, char **argv)
             /******* Publish points *******/
             if (path_en){
                 publish_path(pubPath);
+                publish_gnss_path(pubGnssPath);                        //   发布gnss轨迹
                 publish_path_update(pubPathUpdate);             //   发布经过isam2优化后的路径
                 static int jjj = 0;
                 jjj++;

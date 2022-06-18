@@ -1,7 +1,8 @@
 common:
-    lid_topic:  "/velodyne_points"
-    imu_topic:  "/imu/data"
-
+    lid_topic:  /points_raw     #"/velodyne_points"
+    imu_topic:  /imu_raw         #"/imu/data"
+    gnss_topic:  /gps/fix         #"/imu/data"
+    time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
 #NCLT
 #    lid_topic: "/points_raw"
 #    imu_topic: "/imu_raw"
@@ -13,7 +14,7 @@ common:
 #RS LiDar
 #    lid_topic: "/rslidar"
 #    imu_topic: "/imu"
-    time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
+
     
 preprocess:
     lidar_type: 2                # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR, 
@@ -22,18 +23,22 @@ preprocess:
     blind: 1
 
 mapping:
-    acc_cov: 0.1
-    gyr_cov: 0.1
-    b_acc_cov: 0.0001
-    b_gyr_cov: 0.0001
+    acc_cov: 3.9939570888238808e-03
+    gyr_cov: 1.5636343949698187e-03
+    b_acc_cov: 6.4356659353532566e-05
+    b_gyr_cov: 3.5640318696367613e-05
     fov_degree:    180
     det_range:     100.0
     extrinsic_est_en:  true      # true: enable the online estimation of IMU-LiDAR extrinsic,
-    extrinsic_T: [ 0, 0, 0.28]
-    extrinsic_R: [ 1, 0, 0, 
+    extrinsic_T: [ 0, 0, 0]
+    extrinsic_R: [ -1, 0, 0, 
+                   0, 1, 0, 
+                   0, 0, -1]
+
+    extrinT_Gnss2Lidar: [ 0, 0, 0]
+    extrinR_Gnss2Lidar: [ 1, 0, 0, 
                    0, 1, 0, 
                    0, 0, 1]
-
 publish:
     path_en:  true
     scan_publish_en:  true       # false: close all the point cloud output
@@ -59,19 +64,26 @@ numberOfCores: 4                              # number of cores for mapping opti
 mappingProcessInterval: 0.15                  # seconds, regulate mapping frequency
 
 # Surrounding map
-surroundingkeyframeAddingDistThreshold: 1.0   # meters, regulate keyframe adding threshold
-surroundingkeyframeAddingAngleThreshold: 0.2  # radians, regulate keyframe adding threshold
-surroundingKeyframeDensity: 2.0               # meters, downsample surrounding keyframe poses   
-surroundingKeyframeSearchRadius: 50.0         # meters, within n meters scan-to-map optimization (when loop closure disabled)
+surroundingkeyframeAddingDistThreshold: 1.0   # meters, regulate keyframe adding threshold	选取关键帧的距离阈值
+surroundingkeyframeAddingAngleThreshold: 0.2  # radians, regulate keyframe adding threshold	角度阈值
+surroundingKeyframeDensity: 2.0               # meters, downsample surrounding keyframe poses   no_used
+surroundingKeyframeSearchRadius: 50.0         # meters, within n meters scan-to-map optimization (when loop closure disabled) no_used
 
 # Loop closure
-loopClosureEnableFlag: true                   # use loopclousre or not 
+loopClosureEnableFlag: true
 loopClosureFrequency: 4.0                     # Hz, regulate loop closure constraint add frequency
 surroundingKeyframeSize: 50                   # submap size (when loop closure enabled)
-historyKeyframeSearchRadius: 1.5             # meters, key frame that is within n meters from current pose will be considerd for loop closure
+historyKeyframeSearchRadius: 20.0            # meters, key frame that is within n meters from current pose will be considerd for loop closure
 historyKeyframeSearchTimeDiff: 30.0           # seconds, key frame that is n seconds older will be considered for loop closure
-historyKeyframeSearchNum: 20                  # number of hostory key frames will be fused into a submap for loop closure
+historyKeyframeSearchNum: 25                  # number of hostory key frames will be fused into a submap for loop closure
 historyKeyframeFitnessScore: 0.3              # icp threshold, the smaller the better alignment
+
+# GPS Settings
+useImuHeadingInitialization: false           # if using GPS data, set to "true"
+useGpsElevation: false                      # if GPS elevation is bad, set to "false"
+gpsCovThreshold: 2.0                        # m^2, threshold for using GPS data
+poseCovThreshold: 0 #25.0                      # m^2, threshold for using GPS data  位姿协方差阈值 from isam2
+
 
 # Visualization
 globalMapVisualizationSearchRadius: 1000.0    # meters, global map visualization radius
