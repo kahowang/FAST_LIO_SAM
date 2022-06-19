@@ -87,7 +87,7 @@ GnssProcess::GnssProcess()
 
 GnssProcess::~GnssProcess() {}
 
-// 初始化原点， WGS84 -> ENU
+// 初始化原点， WGS84 -> ENU   ???  调试结果好像是 NED 北东地
 void GnssProcess::InitOriginPosition(double latitude, double longitude, double altitude)
 {
     geo_converter.Reset(latitude, longitude, altitude);

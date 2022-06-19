@@ -199,6 +199,8 @@ pcl::PointCloud<PointType>::Ptr copy_cloudKeyPoses3D(new pcl::PointCloud<PointTy
 pcl::PointCloud<PointTypePose>::Ptr copy_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>());
 
 pcl::PointCloud<PointTypePose>::Ptr fastlio_unoptimized_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>()); //  存储fastlio 未优化的位姿
+pcl::PointCloud<PointTypePose>::Ptr gnss_cloudKeyPoses6D(new pcl::PointCloud<PointTypePose>()); //  gnss 轨迹
+
 // voxel filter paprams
 float odometrySurfLeafSize;
 float mappingCornerLeafSize;
@@ -667,16 +669,15 @@ void addGPSFactor()
     if (poseCovariance(3,3) < poseCovThreshold && poseCovariance(4,4) < poseCovThreshold)
         return;
     static PointType lastGPSPoint;      // 最新的gps数据
-    
     while (!gnss_buffer.empty())
     {
         // 删除当前帧0.2s之前的里程计
-        if (gnss_buffer.front().header.stamp.toSec() < lidar_end_time - 0.2)
+        if (gnss_buffer.front().header.stamp.toSec() < lidar_end_time - 0.05)
         {
             gnss_buffer.pop_front();
         }
         // 超过当前帧0.2s之后，退出
-        else if (gnss_buffer.front().header.stamp.toSec() > lidar_end_time + 0.2)
+        else if (gnss_buffer.front().header.stamp.toSec() > lidar_end_time + 0.05)
         {
             break;
         }
@@ -684,14 +685,12 @@ void addGPSFactor()
         {
             nav_msgs::Odometry thisGPS = gnss_buffer.front();
             gnss_buffer.pop_front();
-
             // GPS噪声协方差太大，不能用
             float noise_x = thisGPS.pose.covariance[0];         //  x 方向的协方差
             float noise_y = thisGPS.pose.covariance[7];
             float noise_z = thisGPS.pose.covariance[14];      //   z(高层)方向的协方差
             if (noise_x > gpsCovThreshold || noise_y > gpsCovThreshold)
                 continue;
-
             // GPS里程计位置
             float gps_x = thisGPS.pose.pose.position.x;
             float gps_y = thisGPS.pose.pose.position.y;
@@ -705,7 +704,6 @@ void addGPSFactor()
             // (0,0,0)无效数据
             if (abs(gps_x) < 1e-6 && abs(gps_y) < 1e-6)
                 continue;
-
             // 每隔5m添加一个GPS里程计
             PointType curGPSPoint;
             curGPSPoint.x = gps_x;
@@ -715,14 +713,12 @@ void addGPSFactor()
                 continue;
             else
                 lastGPSPoint = curGPSPoint;
-
             // 添加GPS因子
             gtsam::Vector Vector3(3);
             Vector3 << max(noise_x, 1.0f), max(noise_y, 1.0f), max(noise_z, 1.0f);
             gtsam::noiseModel::Diagonal::shared_ptr gps_noise = gtsam::noiseModel::Diagonal::Variances(Vector3);
             gtsam::GPSFactor gps_factor(cloudKeyPoses3D->size(), gtsam::Point3(gps_x, gps_y, gps_z), gps_noise);
             gtSAMgraph.add(gps_factor);
-
             aLoopIsClosed = true;
             ROS_INFO("GPS Factor Added");
             break;
@@ -735,20 +731,15 @@ void saveKeyFramesAndFactor()
     //  计算当前帧与前一帧位姿变换，如果变化太小，不设为关键帧，反之设为关键帧
     if (saveFrame() == false)
         return;
-
     // 激光里程计因子(from fast-lio),  输入的是frame_relative pose  帧间位姿(body 系下)
     addOdomFactor();
-
     // GPS因子 (UTM -> WGS84)
-    // addGPSFactor();
-
+    addGPSFactor();
     // 闭环因子 (rs-loop-detect)  基于欧氏距离的检测
     addLoopFactor();
-
     // 执行优化
     isam->update(gtSAMgraph, initialEstimate);
     isam->update();
-
     if (aLoopIsClosed == true) // 有回环因子，多update几次
     {
         isam->update();
@@ -757,7 +748,6 @@ void saveKeyFramesAndFactor()
         isam->update();
         isam->update();
     }
-
     // update之后要清空一下保存的因子图，注：历史数据不会清掉，ISAM保存起来了
     gtSAMgraph.resize(0);
     initialEstimate.clear();
@@ -803,7 +793,7 @@ void saveKeyFramesAndFactor()
     state_updated.rot =  q;
     state_point = state_updated; // 对state_point进行更新，state_point可视化用到
     // if(aLoopIsClosed == true )
-        // kf.change_x(state_updated);  //  对cur_pose 进行isam2优化后的修正
+    kf.change_x(state_updated);  //  对cur_pose 进行isam2优化后的修正
 
     // TODO:  P的修正有待考察，按照yanliangwang的做法，修改了p，会跑飞
     // esekfom::esekf<state_ikfom, 12, input_ikfom>::cov P_updated = kf.get_P(); // 获取当前的状态估计的协方差矩阵
@@ -912,7 +902,6 @@ void correctPoses()
         }
         // 清空局部map， reconstruct  ikdtree submap
         recontructIKdTree();
-
         ROS_INFO("ISMA2 Update");
         aLoopIsClosed = false;
     }
@@ -1389,13 +1378,13 @@ void gnss_cbk(const sensor_msgs::NavSatFixConstPtr& msg_in)
         gnss_data.InitOriginPosition(msg_in->latitude, msg_in->longitude, msg_in->altitude) ; 
         gnss_inited = true ;
     }else{                               //   初始化完成
-        gnss_data.UpdateXYZ(msg_in->latitude, msg_in->longitude, msg_in->altitude) ;             //  WGS84 -> ENU
+        gnss_data.UpdateXYZ(msg_in->latitude, msg_in->longitude, msg_in->altitude) ;             //  WGS84 -> ENU  ???  调试结果好像是 NED 北东地
         nav_msgs::Odometry gnss_data_enu ;
         // add new message to buffer:
         gnss_data_enu.header.stamp = ros::Time().fromSec(gnss_data.time);
-        gnss_data_enu.pose.pose.position.x =  gnss_data.local_N ;  //gnss_data.local_E ;
-        gnss_data_enu.pose.pose.position.y =  gnss_data.local_E ;//gnss_data.local_N;
-        gnss_data_enu.pose.pose.position.z =  gnss_data.local_U;
+        gnss_data_enu.pose.pose.position.x =  gnss_data.local_N ;  //gnss_data.local_E ;   北
+        gnss_data_enu.pose.pose.position.y =  gnss_data.local_E ;  //gnss_data.local_N;    东
+        gnss_data_enu.pose.pose.position.z =  -gnss_data.local_U;  //  地
 
         gnss_data_enu.pose.pose.orientation.x =  geoQuat.x ;                //  gnss 的姿态不可观，所以姿态只用于可视化，取自imu
         gnss_data_enu.pose.pose.orientation.y =  geoQuat.y;
@@ -1423,6 +1412,18 @@ void gnss_cbk(const sensor_msgs::NavSatFixConstPtr& msg_in)
         msg_gnss_pose.pose.position.z = gnss_pose_(2,3) ;
 
         gps_path.poses.push_back(msg_gnss_pose);
+
+        //  save_gnss path
+        PointTypePose thisPose6D;  
+        thisPose6D.x = msg_gnss_pose.pose.position.x ;
+        thisPose6D.y = msg_gnss_pose.pose.position.y ;
+        thisPose6D.z = msg_gnss_pose.pose.position.z ;
+        thisPose6D.intensity = 0;
+        thisPose6D.roll =0;
+        thisPose6D.pitch = 0;
+        thisPose6D.yaw = 0;
+        thisPose6D.time = lidar_end_time;
+        gnss_cloudKeyPoses6D->push_back(thisPose6D);   
     }
 
 
@@ -1781,11 +1782,13 @@ void WriteText(std::ofstream& ofs, pose data){
 
 bool savePoseService(fast_lio_sam::save_poseRequest& req, fast_lio_sam::save_poseResponse& res)
 {
-     pose pose_optimized ;
-     pose pose_without_optimized ;
+    pose pose_gnss ;
+    pose pose_optimized ;
+    pose pose_without_optimized ;
 
-     std::ofstream  file_pose_optimized ;
-     std::ofstream  file_pose_without_optimized ;
+    std::ofstream  file_pose_gnss ;
+    std::ofstream  file_pose_optimized ;
+    std::ofstream  file_pose_without_optimized ;
 
     string savePoseDirectory;
     cout << "****************************************************" << endl;
@@ -1795,6 +1798,7 @@ bool savePoseService(fast_lio_sam::save_poseRequest& req, fast_lio_sam::save_pos
     cout << "Save destination: " << savePoseDirectory << endl;
 
     // create file 
+    CreateFile(file_pose_gnss, savePoseDirectory + "/gnss_pose.txt");
     CreateFile(file_pose_optimized, savePoseDirectory + "/optimized_pose.txt");
     CreateFile(file_pose_without_optimized, savePoseDirectory + "/without_optimized_pose.txt");
 
@@ -1804,14 +1808,23 @@ bool savePoseService(fast_lio_sam::save_poseRequest& req, fast_lio_sam::save_pos
         pose_optimized.R = Exp(double(cloudKeyPoses6D->points[i].roll), double(cloudKeyPoses6D->points[i].pitch), double(cloudKeyPoses6D->points[i].yaw) );
         WriteText(file_pose_optimized, pose_optimized);
     }
-    cout << "Sucess optimized  poses to pose files ..." << endl;
+    cout << "Sucess global optimized  poses to pose files ..." << endl;
 
     for(int i = 0; i  < fastlio_unoptimized_cloudKeyPoses6D->size(); i++){  
         pose_without_optimized.t =  Eigen::Vector3d(fastlio_unoptimized_cloudKeyPoses6D->points[i].x, fastlio_unoptimized_cloudKeyPoses6D->points[i].y, fastlio_unoptimized_cloudKeyPoses6D->points[i].z  );
         pose_without_optimized.R = Exp(double(fastlio_unoptimized_cloudKeyPoses6D->points[i].roll), double(fastlio_unoptimized_cloudKeyPoses6D->points[i].pitch), double(fastlio_unoptimized_cloudKeyPoses6D->points[i].yaw) );
         WriteText(file_pose_without_optimized, pose_without_optimized);
     }
+    cout << "Sucess unoptimized  poses to pose files ..." << endl;
 
+    for(int i = 0; i  < gnss_cloudKeyPoses6D->size(); i++){  
+        pose_gnss.t =  Eigen::Vector3d(gnss_cloudKeyPoses6D->points[i].x, gnss_cloudKeyPoses6D->points[i].y, gnss_cloudKeyPoses6D->points[i].z  );
+        pose_gnss.R = Exp(double(gnss_cloudKeyPoses6D->points[i].roll), double(gnss_cloudKeyPoses6D->points[i].pitch), double(gnss_cloudKeyPoses6D->points[i].yaw) );
+        WriteText(file_pose_gnss, pose_gnss);
+    }
+    cout << "Sucess gnss  poses to pose files ..." << endl;
+
+    file_pose_gnss.close();
     file_pose_optimized.close();
     file_pose_without_optimized.close();
     return true  ;
@@ -2414,7 +2427,7 @@ int main(int argc, char **argv)
             publish_odometry(pubOdomAftMapped);
             /*** add the feature points to map kdtree ***/
             t3 = omp_get_wtime();
-                map_incremental();
+            map_incremental();
             t5 = omp_get_wtime();
             /******* Publish points *******/
             if (path_en){

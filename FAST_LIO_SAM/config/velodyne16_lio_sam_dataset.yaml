@@ -86,7 +86,7 @@ poseCovThreshold: 0 #25.0                      # m^2, threshold for using GPS da
 
 
 # Visualization
-globalMapVisualizationSearchRadius: 1000.0    # meters, global map visualization radius
+globalMapVisualizationSearchRadius: 100.0    # meters, global map visualization radius,  iktree submap 的搜索范围
 globalMapVisualizationPoseDensity: 10      # meters, global map visualization keyframe density
 globalMapVisualizationLeafSize: 1.0           # meters, global map visualization cloud density
 
