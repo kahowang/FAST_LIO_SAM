@@ -1,0 +1,1 @@
+/usr/bin/x86_64-linux-gnu-g++-7 -fPIC  -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp -g  -shared -Wl,-soname,libgmock.so -o libgmock.so CMakeFiles/gmock.dir/__/googletest/src/gtest-all.cc.o CMakeFiles/gmock.dir/src/gmock-all.cc.o 

@@ -1,0 +1,10 @@
+
+# ignore dir or file
+CMakeLists.txt
+FAST_LIO_SAM/PCD
+FAST_LIO_SAM/log
+FAST_LIO_SAM/.vscode
+#whitelist
+
+
+

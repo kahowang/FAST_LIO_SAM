@@ -1,0 +1,1 @@
+/usr/bin/x86_64-linux-gnu-g++-7 -fPIC  -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g   -shared -Wl,-soname,libikd_Tree.so -o devel/lib/libikd_Tree.so CMakeFiles/ikd_Tree.dir/include/ikd-Tree/ikd_Tree.cpp.o 
