@@ -2,13 +2,14 @@
 
 ## Front_end : fastlio2      Back_end : lio_sam
 
-<p align='left'>
-    <img src="./FAST_LIO_SAM/pic/cover2.png " alt="drawing" width="280" height ="280"/>
-    <img src="./FAST_LIO_SAM/pic/cover4.png" alt="drawing" width="280" height =280/>
-    <img src="./FAST_LIO_SAM/pic/cover3.png" alt="drawing" width="280" height =280/>
-    <img src="./FAST_LIO_SAM/pic/cover1.png" alt="drawing" width="280" height =280/>
+<p align='center'>
+    <img src="./FAST_LIO_SAM/pic/cover2.png " alt="drawing" width="200" height ="200"/>
+    <img src="./FAST_LIO_SAM/pic/cover4.png" alt="drawing" width="200" height =200/>
+    <img src="./FAST_LIO_SAM/pic/cover3.png" alt="drawing" width="200" height =200/>
+    <img src="./FAST_LIO_SAM/pic/cover1.png" alt="drawing" width="200" height =200/>
 </p>
-## Videos : [FAST-LIO-SAM   Bilibili_link](https://www.bilibili.com/video/BV12Y4y1g7xN/?vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
+
+## Videos : FAST-LIO-SAM [Bilibili_link](https://www.bilibili.com/video/BV12Y4y1g7xN/?vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
 
 ## Related worked 
 
@@ -50,6 +51,8 @@ catkin_make
 
 #### 1 .For indoor dataset 
 
+Videos : [FAST-LIO-SAM' videos](https://www.bilibili.com/video/BV12Y4y1g7xN?spm_id_from=444.41.list.card_archive.click&vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
+
 dataset is from yanliang-wang 's [FAST_LIO_LC](https://github.com/yanliang-wang/FAST_LIO_LC)  ,[dataset](https://drive.google.com/file/d/1NGTN3aULoTMp3raF75LwMu-OUtzUx-zX/view?usp=sharing) which includes `/velodyne_points`(10Hz) and `/imu/data`(400Hz).
 
 ```shell
@@ -65,6 +68,8 @@ rosbag play  T3F2-2021-08-02-15-00-12.bag
 #### 2 .For outdoor dataset
 
 dataset is from [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM) **Walking dataset:** [[Google Drive](https://drive.google.com/drive/folders/1gJHwfdHCRdjP7vuT556pv8atqrCJPbUq?usp=sharing)]
+
+Videos : [FAST-LIO-SAM' videos](https://www.bilibili.com/video/BV12Y4y1g7xN?spm_id_from=444.41.list.card_archive.click&vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
 
 ```shell
 roslaunch fast_lio_sam mapping_velodyne16_lio_sam_dataset.launch
@@ -133,6 +138,8 @@ savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home
 #### 1.dataset
 
 dataset is from [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM) **Park dataset:** [[Google Drive](https://drive.google.com/drive/folders/1gJHwfdHCRdjP7vuT556pv8atqrCJPbUq?usp=sharing)]
+
+Videos : [FAST-LIO-SAM' videos](https://www.bilibili.com/video/BV12Y4y1g7xN?spm_id_from=444.41.list.card_archive.click&vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
 
 ```shell
 roslaunch fast_lio_sam mapping_velodyne16_lio_sam_dataset.launch
