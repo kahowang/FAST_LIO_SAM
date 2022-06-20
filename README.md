@@ -2,6 +2,14 @@
 
 ## Front_end : fastlio2      Back_end : lio_sam
 
+<p align='left'>
+    <img src="./FAST_LIO_SAM/pic/cover2.png " alt="drawing" width="280" height ="280"/>
+    <img src="./FAST_LIO_SAM/pic/cover4.png" alt="drawing" width="280" height =280/>
+    <img src="./FAST_LIO_SAM/pic/cover3.png" alt="drawing" width="280" height =280/>
+    <img src="./FAST_LIO_SAM/pic/cover1.png" alt="drawing" width="280" height =280/>
+</p>
+## Videos : [FAST-LIO-SAM   Bilibili_link](https://www.bilibili.com/video/BV12Y4y1g7xN/?vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
+
 ## Related worked 
 
 1.[FAST-LIO2](https://github.com/hku-mars/FAST_LIO)为紧耦合的lio slam系统，因其缺乏前端，所以缺少全局一致性，参考lio_sam的后端部分，接入GTSAM进行后端优化。
@@ -188,6 +196,13 @@ poseCovThreshold: 0 #25.0                      # m^2, threshold for using GPS da
 
 #### 5.some fun
 
+when you want to see the path in the Map [satellite map](http://dict.youdao.com/w/satellite map/#keyfrom=E2Ctranslation)，you can also use [Mapviz](http://wiki.ros.org/mapviz)p  plugin . You can refer to  my [blog](https://blog.csdn.net/weixin_41281151/article/details/120630786?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522165569598716782246421813%2522%252C%2522scm%2522%253A%252220140713.130102334..%2522%257D&request_id=165569598716782246421813&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduend~default-2-120630786-null-null.142^v17^pc_search_result_control_group,157^v15^new_3&utm_term=MAPVIZ&spm=1018.2226.3001.4187) on CSDN.
+
+<div align="left">
+<img src = "./FAST_LIO_SAM/pic/mapviz_1.gif "  alt ="outdoor"  width=49.6%  height =60%; "/>
+<img src = "./FAST_LIO_SAM/pic/mapviz_2.gif "  alt ="outdoor"  width=49.6%  height =60%; "/>
+</div>
+
 
 
 ## Attention:
@@ -216,14 +231,10 @@ poseCovThreshold: 0 #25.0                      # m^2, threshold for using GPS da
 
 
 
-
-
-
-
 ## Acknowledgements 
 
 ​	In this project, the LIO module refers to [FAST-LIO](https://github.com/hku-mars/FAST_LIO) and the pose graph optimization refers to [FAST_LIO_SLAM](https://github.com/gisbi-kim/FAST_LIO_SLAM) and [LIO_SAM](https://github.com/TixiaoShan/LIO-SAM).The mainly idea is for [FAST_LIO_LC](https://github.com/yanliang-wang/FAST_LIO_LC).Thanks there great work .
 
 ​	Also thanks yanliang-wang、minzhao-zhu、peili-ma  's  great help .
 
-​																																														edited by kaho 2022.616
+​																																																																	edited by kaho 2022.6.20

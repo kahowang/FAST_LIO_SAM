@@ -2,7 +2,9 @@
 
 ## Front_end : fastlio2      Back_end : lio_sam
 
-代码链接：[https://github.com/kahowang/FAST_LIO_SAM](https://github.com/kahowang/FAST_LIO_SAM)	  如果对你有帮助希望能给个star喔，万分感谢~
+![indoor](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11indoor.gif)
+
+## Videos : [FAST-LIO-SAM   Bilibili_link](https://www.bilibili.com/video/BV12Y4y1g7xN/?vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
 
 ## Related worked 
 
@@ -53,6 +55,8 @@ rosbag play  T3F2-2021-08-02-15-00-12.bag
 
 ![indoor](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11indoor.gif)
 
+
+
 #### 2 .For outdoor dataset
 
 dataset is from [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM) **Walking dataset:** [[Google Drive](https://drive.google.com/drive/folders/1gJHwfdHCRdjP7vuT556pv8atqrCJPbUq?usp=sharing)]
@@ -66,7 +70,8 @@ rosbag  play  walking_dataset.bag
 
 ![outdoor_2](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11outdoor_2.gif)
 
-### 3.save_map
+
+#### 3.save_map
 
 输入如下指令到terminal中，地图文件将会保存在应文件夹中
 
@@ -76,7 +81,7 @@ destination: ''"
 success: True
 ```
 
-### 4.save_poes
+#### 4.save_poes
 
 输入如下指令到terminal中，poes文件将会保存在相应文件夹中
 
@@ -95,7 +100,7 @@ evo_traj kitti optimized_pose.txt without_optimized_pose.txt -p
 | ![evo1](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11evo1.png) | ![evo2](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11evo2.png) |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
 
-### 5.some config 
+#### 5.some config 
 
 ```shell
 # Loop closure
@@ -120,7 +125,76 @@ savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home
 
 ### Use GPS：
 
-#### working
+#### 1.dataset
+
+dataset is from [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM) **Park dataset:** [[Google Drive](https://drive.google.com/drive/folders/1gJHwfdHCRdjP7vuT556pv8atqrCJPbUq?usp=sharing)]
+
+```shell
+roslaunch fast_lio_sam mapping_velodyne16_lio_sam_dataset.launch
+rosbag  play  parking_dataset.bag
+```
+
+Line Color define:  path_no_optimized(blue)、path_updated(red)、path_gnss(green)
+
+![gps_optimized_path](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11gps_optimized_path.gif)
+
+![gps_optimized_with_map](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11gps_optimized_with_map.gif)
+
+#### 2.save_map
+
+输入如下指令到terminal中，地图文件将会保存在应文件夹中
+
+```shell
+rosservice call /save_map "resolution: 0.0
+destination: ''" 
+success: True
+```
+
+FAST-LIO  Map (no gnss prior factor)  Red   ;    FAST-LIO-SAM  (with gnss prior factor) Blue
+
+![gps_map](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11gps_map.gif)
+
+
+#### 3.save_poes
+
+输入如下指令到terminal中，poes文件将会保存在相应文件夹中
+
+```
+rosservice call /save_pose "resolution: 0.0
+destination: ''" 
+success: False
+```
+
+evo 绘制轨迹
+
+```
+evo_traj kitti gnss_pose.txt optimized_pose.txt  -p
+```
+
+| FAST-LIO  (no gnss prior factor)                             | FAST-LIO-SAM  (with gnss prior factor)                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------ |
+| ![evo_no_optimized](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11evo_no_optimized.png) | ![evo_optimized](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11evo_optimized.png) |
+
+
+
+#### 4.some config 
+
+```shell
+# GPS Settings
+useImuHeadingInitialization: false           # if using GPS data, set to "true"
+useGpsElevation: false                      # if GPS elevation is bad, set to "false"
+gpsCovThreshold: 2.0                        # m^2, threshold for using GPS data
+poseCovThreshold: 0 #25.0                      # m^2, threshold for using GPS data  位姿协方差阈值 from isam2
+```
+
+#### 5.some fun
+
+when you want to see the path in the Map [satellite map](http://dict.youdao.com/w/satellite map/#keyfrom=E2Ctranslation)，you can also use [Mapviz](http://wiki.ros.org/mapviz)p  plugin . You can refer to  my [blog](https://blog.csdn.net/weixin_41281151/article/details/120630786?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522165569598716782246421813%2522%252C%2522scm%2522%253A%252220140713.130102334..%2522%257D&request_id=165569598716782246421813&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduend~default-2-120630786-null-null.142^v17^pc_search_result_control_group,157^v15^new_3&utm_term=MAPVIZ&spm=1018.2226.3001.4187) on CSDN.
+
+![mapviz_1](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11mapviz_1.gif)
+
+![mapviz_2](https://kaho-pic-1307106074.cos.ap-guangzhou.myqcloud.com/CSDN_Pictures/%E6%B7%B1%E8%93%9D%E5%A4%9A%E4%BC%A0%E6%84%9F%E5%99%A8%E8%9E%8D%E5%90%88%E5%AE%9A%E4%BD%8D/%E7%AC%AC%E4%BA%8C%E7%AB%A0%E6%BF%80%E5%85%89%E9%87%8C%E7%A8%8B%E8%AE%A11mapviz_2.gif)
+
 
 ## Attention:
 
@@ -128,9 +202,23 @@ savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home
 
 2.参考yanliang-wang [FAST-LIO-LC](https://github.com/yanliang-wang/FAST_LIO_LC)中的iktree  reconstruct 
 
-
-
 3.在walking数据集中，因为有个别数据是在同一个地方不断手持旋转激光雷达，旋转激光雷达的角度达到了保存关键帧的阈值，在短时间内，保存了多帧相似的关键帧，导致ISAM2出现特征退化，进而里程计跑飞，可以根据数据集的情况适当调整关键帧选取的阈值参数。
+
+4.添加GPS prior 先验因子的部分diamante，参考lio_sam的先验因子部分，对比于kim的FAST-LIO-SLAM，FAST-LIO-SLAM中只是用了GPS的高层约束，并没有使用xy方向的约束，而GPS在高层(Z轴)的误差比较大，优化过程中容易引入误差。
+
+5.GPS先验因子中，**"useGpsElevation"**是否选择GPS的高层约束，默认不使用，因为GPS的高层噪声比较大。
+
+6.LIO-SAM 中使用**ekf_localization_node**这个ROS Package 把GPS的WGS84 坐标系 转到 World系下，FAST-LIO-SAM考虑到尽量与外部的ROS package 解耦，调用 **GeographicLib**进行坐标转换。
+
+
+
+## some problems:
+
+1.GNSS的经纬高噪声协方差没有转换到World系下，暂时使用latitude  longtitude 的cov noise 作为x y 向的cov nosie
+
+2.应该使用的是ENU坐标系，但是使用**GeographicLib**转换后的结果得到的坐标系是NED坐标系下的，原因暂时没捋清楚，待解决。（X: E   Y: N  Z: -D ）
+
+3.在跑较大的数据集(600s)时，偶尔出现程序崩的现象，暂时没定位问题所在，待解决。
 
 
 
@@ -140,4 +228,4 @@ savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home
 
 ​	Also thanks yanliang-wang、minzhao-zhu、peili-ma  's  great help .
 
-​																																														edited by kaho 2022.616
+​																																																																	edited by kaho 2022.6.20
