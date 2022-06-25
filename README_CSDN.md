@@ -6,6 +6,8 @@
 
 ## Videos : [FAST-LIO-SAM   Bilibili_link](https://www.bilibili.com/video/BV12Y4y1g7xN/?vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
 
+## Source code : [FAST_LIO_SAM](https://github.com/kahowang/FAST_LIO_SAM)
+
 ## Related worked 
 
 1.[FAST-LIO2](https://github.com/hku-mars/FAST_LIO)为紧耦合的lio slam系统，因其缺乏前端，所以缺少全局一致性，参考lio_sam的后端部分，接入GTSAM进行后端优化。

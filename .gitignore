@@ -1,9 +1,11 @@
 
 # ignore dir or file
+.gitignore
 CMakeLists.txt
 FAST_LIO_SAM/PCD
 FAST_LIO_SAM/log
 FAST_LIO_SAM/.vscode
+FAST_LIO_SAM/CMakeLists.txt
 #whitelist
 
 
