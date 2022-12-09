@@ -1,6 +1,8 @@
 file(REMOVE_RECURSE
-  "CMakeFiles/gmock.dir/__/googletest/src/gtest-all.cc.o"
   "CMakeFiles/gmock.dir/src/gmock-all.cc.o"
+  "CMakeFiles/gmock.dir/src/gmock-all.cc.o.d"
+  "CMakeFiles/gmock.dir/usr/src/googletest/googletest/src/gtest-all.cc.o"
+  "CMakeFiles/gmock.dir/usr/src/googletest/googletest/src/gtest-all.cc.o.d"
   "libgmock.pdb"
   "libgmock.so"
 )

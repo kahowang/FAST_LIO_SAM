@@ -303,7 +303,7 @@ vector<double>       extrinR_Gnss2Lidar(9, 0.0);
 // global map visualization radius
 float globalMapVisualizationSearchRadius;
 float globalMapVisualizationPoseDensity;
-float globalMapVisualizationLeafSize;
+float globalMapVisualizationLeafSize;updatePath
 
 // saveMap
 ros::ServiceServer srvSaveMap;
@@ -1382,9 +1382,9 @@ void gnss_cbk(const sensor_msgs::NavSatFixConstPtr& msg_in)
         nav_msgs::Odometry gnss_data_enu ;
         // add new message to buffer:
         gnss_data_enu.header.stamp = ros::Time().fromSec(gnss_data.time);
-        gnss_data_enu.pose.pose.position.x =  gnss_data.local_N ;  //gnss_data.local_E ;   北
-        gnss_data_enu.pose.pose.position.y =  gnss_data.local_E ;  //gnss_data.local_N;    东
-        gnss_data_enu.pose.pose.position.z =  -gnss_data.local_U;  //  地
+        gnss_data_enu.pose.pose.position.x =  gnss_data.local_E ;  //gnss_data.local_E ;   北
+        gnss_data_enu.pose.pose.position.y =  gnss_data.local_N ;  //gnss_data.local_N;    东
+        gnss_data_enu.pose.pose.position.z =  gnss_data.local_U;  //  地
 
         gnss_data_enu.pose.pose.orientation.x =  geoQuat.x ;                //  gnss 的姿态不可观，所以姿态只用于可视化，取自imu
         gnss_data_enu.pose.pose.orientation.y =  geoQuat.y;
@@ -1401,15 +1401,20 @@ void gnss_cbk(const sensor_msgs::NavSatFixConstPtr& msg_in)
         msg_gnss_pose.header.frame_id = "camera_init";
         msg_gnss_pose.header.stamp = ros::Time().fromSec(gnss_data.time);
         // Eigen::Vector3d gnss_pose_ (gnss_data.local_E, gnss_data.local_N, - gnss_data.local_U); 
-        Eigen::Vector3d gnss_pose_ (gnss_data.local_N, gnss_data.local_E, - gnss_data.local_U); 
+        // Eigen::Vector3d gnss_pose_ (gnss_data.local_N, gnss_data.local_E, - gnss_data.local_U); 
+        Eigen::Matrix4d gnss_pose = Eigen::Matrix4d::Identity();
+
+        gnss_pose(0,3) = gnss_data.local_E ;
+        gnss_pose(1,3) = gnss_data.local_N ;
+        gnss_pose(2,3) =gnss_data.local_U ;
 
         Eigen::Isometry3d gnss_to_lidar(Gnss_R_wrt_Lidar) ;
         gnss_to_lidar.pretranslate(Gnss_T_wrt_Lidar);
-        gnss_pose_ =  gnss_to_lidar  *  gnss_pose_ ;                    //  gnss 转到 lidar 系下
+        gnss_pose  =  gnss_to_lidar  *  gnss_pose ;                    //  gnss 转到 lidar 系下
 
-        msg_gnss_pose.pose.position.x = gnss_pose_(0,3) ;  
-        msg_gnss_pose.pose.position.y = gnss_pose_(1,3) ;
-        msg_gnss_pose.pose.position.z = gnss_pose_(2,3) ;
+        msg_gnss_pose.pose.position.x = gnss_pose(0,3) ;  
+        msg_gnss_pose.pose.position.y = gnss_pose(1,3) ;
+        msg_gnss_pose.pose.position.z = gnss_pose(2,3) ;
 
         gps_path.poses.push_back(msg_gnss_pose);
 
@@ -2000,7 +2005,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
 
         auto &points_near = Nearest_Points[i];
 
-        if (ekfom_data.converge)
+        if (ekfom_data.converge)        //  如果收敛了
         {
             /** Find the closest surfaces in the map **/
             // world系下从ikdtree找5个最近点用于平面拟合
@@ -2014,8 +2019,7 @@ void h_share_model(state_ikfom &s, esekfom::dyn_share_datastruct<double> &ekfom_
         if (!point_selected_surf[i])
             continue;
 
-        VF(4)
-        pabcd;
+        VF(4)  pabcd;          //  plane 参数  a b c d
         point_selected_surf[i] = false; //二次筛选平面点
         //拟合局部平面，返回：是否有内点大于距离阈值
         if (esti_plane(pabcd, points_near, 0.1f))

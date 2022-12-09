@@ -1,5 +1,6 @@
 file(REMOVE_RECURSE
   "CMakeFiles/preprocess.dir/src/preprocess.cpp.o"
+  "CMakeFiles/preprocess.dir/src/preprocess.cpp.o.d"
   "devel/lib/libpreprocess.pdb"
   "devel/lib/libpreprocess.so"
 )

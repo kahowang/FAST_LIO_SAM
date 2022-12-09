@@ -1,0 +1,191 @@
+{
+	"artifacts" : 
+	[
+		{
+			"path" : "gtest/googlemock/libgmock.so"
+		}
+	],
+	"backtrace" : 3,
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"add_library",
+			"cxx_library_with_type",
+			"cxx_library",
+			"ADD_COMPILE_OPTIONS",
+			"set_target_properties",
+			"include_directories"
+		],
+		"files" : 
+		[
+			"/usr/src/googletest/googletest/cmake/internal_utils.cmake",
+			"/usr/src/googletest/googlemock/CMakeLists.txt",
+			"CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 1
+			},
+			{
+				"command" : 2,
+				"file" : 1,
+				"line" : 84,
+				"parent" : 0
+			},
+			{
+				"command" : 1,
+				"file" : 0,
+				"line" : 172,
+				"parent" : 1
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 149,
+				"parent" : 2
+			},
+			{
+				"file" : 2
+			},
+			{
+				"command" : 3,
+				"file" : 2,
+				"line" : 6,
+				"parent" : 4
+			},
+			{
+				"command" : 4,
+				"file" : 0,
+				"line" : 154,
+				"parent" : 2
+			},
+			{
+				"command" : 5,
+				"file" : 1,
+				"line" : 59,
+				"parent" : 0
+			}
+		]
+	},
+	"compileGroups" : 
+	[
+		{
+			"compileCommandFragments" : 
+			[
+				{
+					"fragment" : " -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp -g -fPIC"
+				},
+				{
+					"fragment" : " -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp -Wall -Wshadow -DGTEST_HAS_PTHREAD=1 -fexceptions -Wextra -Wno-unused-parameter -Wno-missing-field-initializers"
+				},
+				{
+					"backtrace" : 5,
+					"fragment" : "-std=c++14"
+				},
+				{
+					"fragment" : "-std=c++14"
+				}
+			],
+			"defines" : 
+			[
+				{
+					"backtrace" : 6,
+					"define" : "GTEST_CREATE_SHARED_LIBRARY=1"
+				},
+				{
+					"define" : "MP_EN"
+				},
+				{
+					"define" : "MP_PROC_NUM=3"
+				},
+				{
+					"define" : "ROOT_DIR=\"/home/lory/fast_lio_sam_ws/src/FAST_LIO_SAM/\""
+				},
+				{
+					"define" : "gmock_EXPORTS"
+				}
+			],
+			"includes" : 
+			[
+				{
+					"backtrace" : 7,
+					"path" : "/usr/src/googletest/googlemock/include"
+				},
+				{
+					"backtrace" : 7,
+					"path" : "/usr/src/googletest/googlemock"
+				},
+				{
+					"backtrace" : 7,
+					"path" : "/usr/src/googletest/googletest/include"
+				},
+				{
+					"backtrace" : 7,
+					"path" : "/usr/src/googletest/googletest"
+				}
+			],
+			"language" : "CXX",
+			"languageStandard" : 
+			{
+				"backtraces" : 
+				[
+					3
+				],
+				"standard" : "14"
+			},
+			"sourceIndexes" : 
+			[
+				0,
+				1
+			]
+		}
+	],
+	"id" : "gmock::@e3f94eedc5dc07131386",
+	"link" : 
+	{
+		"commandFragments" : 
+		[
+			{
+				"fragment" : "",
+				"role" : "flags"
+			}
+		],
+		"language" : "CXX"
+	},
+	"name" : "gmock",
+	"nameOnDisk" : "libgmock.so",
+	"paths" : 
+	{
+		"build" : "gtest/googlemock",
+		"source" : "/usr/src/googletest/googlemock"
+	},
+	"sourceGroups" : 
+	[
+		{
+			"name" : "Source Files",
+			"sourceIndexes" : 
+			[
+				0,
+				1
+			]
+		}
+	],
+	"sources" : 
+	[
+		{
+			"backtrace" : 3,
+			"compileGroupIndex" : 0,
+			"path" : "/usr/src/googletest/googletest/src/gtest-all.cc",
+			"sourceGroupIndex" : 0
+		},
+		{
+			"backtrace" : 3,
+			"compileGroupIndex" : 0,
+			"path" : "/usr/src/googletest/googlemock/src/gmock-all.cc",
+			"sourceGroupIndex" : 0
+		}
+	],
+	"type" : "SHARED_LIBRARY"
+}

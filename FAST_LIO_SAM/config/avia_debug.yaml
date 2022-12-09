@@ -1,0 +1,85 @@
+common:
+    lid_topic:  "/livox/lidar"
+    imu_topic:  "/handsfree/imu"
+    gnss_topic:  /gps/fix         #"/imu/data"
+    time_sync_en: false         # ONLY turn on when external time synchronization is really not possible
+
+preprocess:
+    lidar_type: 1                # 1 for Livox serials LiDAR, 2 for Velodyne LiDAR, 3 for ouster LiDAR, 
+    scan_line: 6
+    blind: 4
+
+mapping:
+    acc_cov: 0.1
+    gyr_cov: 0.1
+    b_acc_cov: 0.0001
+    b_gyr_cov: 0.0001
+    fov_degree:    70
+    det_range:     450.0
+    extrinsic_est_en:  false      # true: enable the online estimation of IMU-LiDAR extrinsic
+    extrinsic_T: [ 0.008, 0.01, -0.08 ]
+    extrinsic_R: [ 1, 0, 0,
+                   0, 1, 0,
+                   0, 0, 1]
+
+publish:
+    path_en:  true
+    scan_publish_en:  true       # false: close all the point cloud output
+    dense_publish_en: true       # false: low down the points number in a global-frame point clouds scan.
+    scan_bodyframe_pub_en: true  # true: output the point cloud scans in IMU-body-frame
+
+pcd_save:
+    pcd_save_en: true
+    interval: -1                 # how many LiDAR frames saved in each pcd file; 
+                                 # -1 : all frames will be saved in ONE pcd file, may lead to memory crash when having too much frames.
+
+
+# voxel filter paprams
+odometrySurfLeafSize: 0.2                     # default: 0.4 - outdoor, 0.2 - indoor
+mappingCornerLeafSize: 0.1                    # default: 0.2 - outdoor, 0.1 - indoor
+mappingSurfLeafSize: 0.2                      # default: 0.4 - outdoor, 0.2 - indoor
+
+# robot motion constraint (in case you are using a 2D robot)
+z_tollerance: 1000                            # meters
+rotation_tollerance: 1000                     # radians
+
+# CPU Params
+numberOfCores: 4                              # number of cores for mapping optimization
+mappingProcessInterval: 0.15                  # seconds, regulate mapping frequency
+
+# Surrounding map
+surroundingkeyframeAddingDistThreshold: 1.0   # meters, regulate keyframe adding threshold	选取关键帧的距离阈值
+surroundingkeyframeAddingAngleThreshold: 0.2  # radians, regulate keyframe adding threshold	角度阈值
+surroundingKeyframeDensity: 2.0               # meters, downsample surrounding keyframe poses   no_used
+surroundingKeyframeSearchRadius: 50.0         # meters, within n meters scan-to-map optimization (when loop closure disabled) no_used
+
+# Loop closure
+loopClosureEnableFlag: true
+loopClosureFrequency: 4.0                     # Hz, regulate loop closure constraint add frequency
+surroundingKeyframeSize: 50                   # submap size (when loop closure enabled)
+historyKeyframeSearchRadius: 3.0            # meters, key frame that is within n meters from current pose will be considerd for loop closure
+historyKeyframeSearchTimeDiff: 30.0           # seconds, key frame that is n seconds older will be considered for loop closure
+historyKeyframeSearchNum: 20                  # number of hostory key frames will be fused into a submap for loop closure
+historyKeyframeFitnessScore: 0.3              # icp threshold, the smaller the better alignment
+
+# GPS Settings
+useImuHeadingInitialization: false           # if using GPS data, set to "true"
+useGpsElevation: false                      # if GPS elevation is bad, set to "false"
+gpsCovThreshold: 2.0                        # m^2, threshold for using GPS data
+poseCovThreshold: 0 #25.0                      # m^2, threshold for using GPS data  位姿协方差阈值 from isam2
+
+
+# Visualization
+globalMapVisualizationSearchRadius: 100.0    # meters, global map visualization radius,  iktree submap 的搜索范围
+globalMapVisualizationPoseDensity: 10      # meters, global map visualization keyframe density
+globalMapVisualizationLeafSize: 1.0           # meters, global map visualization cloud density
+
+# visual iktree_map  
+visulize_IkdtreeMap: true
+
+# visual iktree_map  
+recontructKdTree: true
+
+# Export settings
+savePCD: true                         # https://github.com/TixiaoShan/LIO-SAM/issues/3
+savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home folder, starts and ends with "/". Warning: the code deletes "LOAM" folder then recreates it. See "mapOptimization" for implementation
