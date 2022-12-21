@@ -234,7 +234,13 @@ when you want to see the path in the Map [satellite map](http://dict.youdao.com/
 
 2.应该使用的是ENU坐标系，但是使用**GeographicLib**转换后的结果得到的坐标系是NED坐标系下的，原因暂时没捋清楚，待解决。（X: E   Y: N  Z: -D ）
 
-3.在跑较大的数据集(600s)时，偶尔出现程序崩的现象，暂时没定位问题所在，待解决。
+
+
+## UpdateLogs:
+
+根据网友的运行和提示，进行了代码的一些bug更新与修改，更新日志如下，欢迎大家多提issues，感谢大家~
+
+https://github.com/kahowang/FAST_LIO_SAM/blob/master/%E6%9B%B4%E6%96%B0%E6%97%A5%E5%BF%97.md
 
 
 
