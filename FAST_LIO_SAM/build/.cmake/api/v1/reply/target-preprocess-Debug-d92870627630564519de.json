@@ -2,7 +2,7 @@
 	"artifacts" : 
 	[
 		{
-			"path" : "devel/lib/libikd_Tree.so"
+			"path" : "devel/lib/libpreprocess.so"
 		}
 	],
 	"backtrace" : 1,
@@ -46,7 +46,7 @@
 			{
 				"command" : 0,
 				"file" : 0,
-				"line" : 109,
+				"line" : 110,
 				"parent" : 0
 			},
 			{
@@ -233,7 +233,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : " -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g -fPIC"
+					"fragment" : "-std=c++14 -O3 -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g -fPIC"
 				},
 				{
 					"backtrace" : 2,
@@ -270,7 +270,7 @@
 					"define" : "ROS_PACKAGE_NAME=\"fast_lio_sam\""
 				},
 				{
-					"define" : "ikd_Tree_EXPORTS"
+					"define" : "preprocess_EXPORTS"
 				},
 				{
 					"backtrace" : 25,
@@ -423,7 +423,7 @@
 			]
 		}
 	],
-	"id" : "ikd_Tree::@6890427a1f51a3e7e1df",
+	"id" : "preprocess::@6890427a1f51a3e7e1df",
 	"link" : 
 	{
 		"commandFragments" : 
@@ -435,8 +435,8 @@
 		],
 		"language" : "CXX"
 	},
-	"name" : "ikd_Tree",
-	"nameOnDisk" : "libikd_Tree.so",
+	"name" : "preprocess",
+	"nameOnDisk" : "libpreprocess.so",
 	"paths" : 
 	{
 		"build" : ".",
@@ -457,7 +457,7 @@
 		{
 			"backtrace" : 1,
 			"compileGroupIndex" : 0,
-			"path" : "include/ikd-Tree/ikd_Tree.cpp",
+			"path" : "src/preprocess.cpp",
 			"sourceGroupIndex" : 0
 		}
 	],

@@ -303,7 +303,7 @@ vector<double>       extrinR_Gnss2Lidar(9, 0.0);
 // global map visualization radius
 float globalMapVisualizationSearchRadius;
 float globalMapVisualizationPoseDensity;
-float globalMapVisualizationLeafSize;updatePath
+float globalMapVisualizationLeafSize;
 
 // saveMap
 ros::ServiceServer srvSaveMap;
@@ -953,10 +953,14 @@ void loopFindNearKeyframes(pcl::PointCloud<PointType>::Ptr &nearKeyframes, const
     // 提取key索引的关键帧前后相邻若干帧的关键帧特征点集合
     nearKeyframes->clear();
     int cloudSize = copy_cloudKeyPoses6D->size();
+    auto surfcloud_keyframes_size = surfCloudKeyFrames.size() ;
     for (int i = -searchNum; i <= searchNum; ++i)
     {
         int keyNear = key + i;
         if (keyNear < 0 || keyNear >= cloudSize)
+            continue;
+
+        if (keyNear < 0 || keyNear >= surfcloud_keyframes_size)
             continue;
 
         // *nearKeyframes += *transformPointCloud(cornerCloudKeyFrames[keyNear], &copy_cloudKeyPoses6D->points[keyNear]);

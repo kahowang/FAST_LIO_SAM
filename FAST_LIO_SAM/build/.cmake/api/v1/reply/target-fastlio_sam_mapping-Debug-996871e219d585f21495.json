@@ -361,7 +361,7 @@
 			"compileCommandFragments" : 
 			[
 				{
-					"fragment" : " -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g"
+					"fragment" : "-std=c++14 -O3 -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g"
 				},
 				{
 					"backtrace" : 26,
@@ -635,7 +635,7 @@
 		"commandFragments" : 
 		[
 			{
-				"fragment" : "-std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g",
+				"fragment" : "-std=c++14 -O3 -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g",
 				"role" : "flags"
 			},
 			{

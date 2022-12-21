@@ -6,5 +6,5 @@ CXX_DEFINES = -DMP_EN -DMP_PROC_NUM=3 -DROOT_DIR=\"/home/lory/fast_lio_sam_ws/sr
 
 CXX_INCLUDES = -I/home/lory/fast_lio_sam_ws/src/FAST_LIO_SAM/build/devel/include -I/usr/include/vtk-6.3 -I/usr/include/freetype2 -I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent -I/usr/lib/x86_64-linux-gnu/openmpi/include/openmpi/opal/mca/event/libevent2022/libevent/include -I/usr/lib/x86_64-linux-gnu/openmpi/include -I/usr/include/python2.7 -I/usr/include/hdf5/openmpi -I/usr/include/libxml2 -I/usr/include/jsoncpp -I/usr/include/tcl -I/opt/ros/melodic/include -I/opt/ros/melodic/share/xmlrpcpp/cmake/../../../include/xmlrpcpp -I/opt/ros/melodic/share/orocos_kdl/cmake/../../../include -I/usr/include/eigen3 -I/usr/include/pcl-1.8 -I/usr/include/ni -I/usr/include/openni2 -I/home/lory/fast_lio_sam_ws/devel/include -I/usr/include/python3.6m -I/home/lory/fast_lio_sam_ws/src/FAST_LIO_SAM/include
 
-CXX_FLAGS =  -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g -fPIC -std=c++14 -std=c++14
+CXX_FLAGS = -std=c++14 -O3 -std=c++14 -pthread -std=c++0x -std=c++14 -fexceptions -fopenmp  -g -fPIC -std=c++14 -std=c++14
 
