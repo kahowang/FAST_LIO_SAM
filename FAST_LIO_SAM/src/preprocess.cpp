@@ -62,6 +62,9 @@ void Preprocess::process(const sensor_msgs::PointCloud2::ConstPtr &msg, PointClo
   case RS128:
       rs_handler(msg);
       break;
+  case PANDAR:
+      pandar_handler(msg);
+      break;
 
   default:
     printf("Error LiDAR Type");
@@ -395,7 +398,8 @@ void Preprocess::velodyne_handler(const sensor_msgs::PointCloud2::ConstPtr &msg)
         added_pt.y = pl_orig.points[i].y;
         added_pt.z = pl_orig.points[i].z;
         added_pt.intensity = pl_orig.points[i].intensity;
-        added_pt.curvature = pl_orig.points[i].time / 1000.0;  // curvature unit: ms
+        added_pt.curvature = (pl_orig.points[i].time - msg->header.stamp.toSec()) * 1000;  //s to ms
+        // added_pt.curvature = pl_orig.points[i].time / 1000.0;  // curvature unit: ms
 
         if (!given_offset_time)
         {
@@ -1103,5 +1107,120 @@ void Preprocess::rs_handler(const sensor_msgs::PointCloud2_<allocator<void>>::Co
                 }
             }
         }
+    }
+}
+
+void Preprocess::pandar_handler(const sensor_msgs::PointCloud2::ConstPtr &msg) 
+{
+    pl_surf.clear();
+    pl_corn.clear();
+    pl_full.clear();
+
+    pcl::PointCloud<pandar_ros::Point> pl_orig;
+    pcl::fromROSMsg(*msg, pl_orig);
+    int plsize = pl_orig.points.size();
+    pl_surf.reserve(plsize);
+
+    /*** These variables only works when no point timestamps given ***/
+    double omega_l = 0.361 * SCAN_RATE;       // scan angular velocity
+    std::vector<bool> is_first(N_SCANS,true);
+    std::vector<double> yaw_fp(N_SCANS, 0.0);      // yaw of first scan point
+    std::vector<float> yaw_last(N_SCANS, 0.0);   // yaw of last scan point
+    std::vector<float> time_last(N_SCANS, 0.0);  // last offset time
+    /*****************************************************************/
+
+    if (pl_orig.points[plsize - 1].timestamp > 0)//todo check pl_orig.points[plsize - 1].time
+    {
+      given_offset_time = true;
+    }
+    else
+    {
+      given_offset_time = false;
+      //貌似可以不实现，因为hesai驱动自带offset_time
+    }
+
+    if(feature_enabled)
+    {
+      for (int i = 0; i < N_SCANS; i++)
+      {
+        pl_buff[i].clear();
+        pl_buff[i].reserve(plsize);
+      }
+
+      //计算时间、转换点云格式为PointType，正序遍历
+      for (int i = 0; i < plsize; i++)
+      {
+        PointType added_pt;
+        added_pt.normal_x = 0;
+        added_pt.normal_y = 0;
+        added_pt.normal_z = 0;
+        int layer  = pl_orig.points[i].ring;
+        if (layer >= N_SCANS) continue;
+        added_pt.x = pl_orig.points[i].x;
+        added_pt.y = pl_orig.points[i].y;
+        added_pt.z = pl_orig.points[i].z;
+        added_pt.intensity = pl_orig.points[i].intensity;
+        added_pt.curvature = (pl_orig.points[i].timestamp - msg->header.stamp.toSec()) * 1000;  //s to ms
+
+        if (!given_offset_time)
+        {
+          //貌似可以不实现，因为hesai驱动自带offset_time
+        }
+        pl_buff[layer].points.push_back(added_pt);
+      }
+
+      for (int j = 0; j < N_SCANS; j++)
+      {
+        PointCloudXYZI &pl = pl_buff[j]; // points_line
+        int linesize = pl.size();
+        if (linesize < 2) continue;
+        vector<orgtype> &types = typess[j]; //用于记录当前扫描线上每个点的参数
+        types.clear();
+        types.resize(linesize);
+        linesize--;
+        for (uint i = 0; i < linesize; i++)
+        {
+          types[i].range = sqrt(pl[i].x * pl[i].x + pl[i].y * pl[i].y);
+          vx = pl[i].x - pl[i + 1].x;
+          vy = pl[i].y - pl[i + 1].y;
+          vz = pl[i].z - pl[i + 1].z;
+          types[i].dista = vx * vx + vy * vy + vz * vz;
+        }
+        types[linesize].range = sqrt(pl[linesize].x * pl[linesize].x + pl[linesize].y * pl[linesize].y);
+        give_feature(pl, types);
+      }
+    }
+    else
+    {
+      for (int i = 0; i < plsize; i++)
+      {
+        PointType added_pt;
+        // cout<<"!!!!!!"<<i<<" "<<plsize<<endl;
+        
+        added_pt.normal_x = 0;
+        added_pt.normal_y = 0;
+        added_pt.normal_z = 0;
+        added_pt.x = pl_orig.points[i].x;
+        added_pt.y = pl_orig.points[i].y;
+        added_pt.z = pl_orig.points[i].z;
+        added_pt.intensity = pl_orig.points[i].intensity;
+        // added_pt.curvature = pl_orig.points[i].time / 1000.0;  // curvature unit: ms
+        added_pt.curvature = (pl_orig.points[i].timestamp - msg->header.stamp.toSec()) * 1000;  //s to ms
+
+        if (!given_offset_time)
+        {
+          //貌似可以不实现，因为hesai驱动自带offset_time
+        }
+
+        if (i % point_filter_num == 0)
+        {
+          if(added_pt.x*added_pt.x+added_pt.y*added_pt.y+added_pt.z*added_pt.z > (blind * blind))
+          {
+            pl_surf.points.push_back(added_pt);
+          }
+        }
+
+      }
+    
     }
 }
