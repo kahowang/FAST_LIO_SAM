@@ -1,0 +1,6 @@
+<launch>
+
+    <node pkg="serial_imu" name="serial_imu_node" type="serial_imu"  output="screen">
+    </node>
+
+</launch>
