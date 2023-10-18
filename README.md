@@ -244,6 +244,19 @@ https://github.com/kahowang/FAST_LIO_SAM/blob/master/%E6%9B%B4%E6%96%B0%E6%97%A5
 
 
 
+## Cite the Work 
+If you use this repository in your academic research, a BibTeX citation is appreciated: 
+```
+@misc{wang2022fast_lio_sam,
+  title={FAST-LIO-SAM: FAST-LIO with Smoothing and Mapping.},
+  author={Wang, Jiahao},
+  howpublished={\url{https://github.com/kahowang/FAST_LIO_SAM}},
+  year={2022}
+}
+```
+
+
+
 ## Acknowledgements 
 
 ​	In this project, the LIO module refers to [FAST-LIO](https://github.com/hku-mars/FAST_LIO) and the pose graph optimization refers to [FAST_LIO_SLAM](https://github.com/gisbi-kim/FAST_LIO_SLAM) and [LIO_SAM](https://github.com/TixiaoShan/LIO-SAM).The mainly idea is for [FAST_LIO_LC](https://github.com/yanliang-wang/FAST_LIO_LC).Thanks there great work .
