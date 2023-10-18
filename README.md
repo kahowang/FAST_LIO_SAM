@@ -254,6 +254,8 @@ If you use this repository in your academic research, a BibTeX citation is appre
   year={2022}
 }
 ```
+or, you can add a footnote link of this repository: 
+`https://github.com/kahowang/FAST_LIO_SAM` 
 
 
 
