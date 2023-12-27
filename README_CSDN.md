@@ -132,7 +132,7 @@ savePCDDirectory: "/fast_lio_sam_ws/src/FAST_LIO_SAM/PCD/"        # in your home
 dataset is from [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM) **Park dataset:** [[Google Drive](https://drive.google.com/drive/folders/1gJHwfdHCRdjP7vuT556pv8atqrCJPbUq?usp=sharing)]
 
 ```shell
-roslaunch fast_lio_sam mapping_velodyne16_lio_sam_dataset.launch
+roslaunch fast_lio_sam mapping_velodyne16_lio_sam_parking_dataset.launch
 rosbag  play  parking_dataset.bag
 ```
 

@@ -142,7 +142,7 @@ dataset is from [LIO-SAM](https://github.com/TixiaoShan/LIO-SAM) **Park dataset:
 Videos : [FAST-LIO-SAM' videos](https://www.bilibili.com/video/BV12Y4y1g7xN?spm_id_from=444.41.list.card_archive.click&vd_source=ed6bf57ee5a8e930b7a857e261dac86d)
 
 ```shell
-roslaunch fast_lio_sam mapping_velodyne16_lio_sam_dataset.launch
+roslaunch fast_lio_sam mapping_velodyne16_lio_sam_parking_dataset.launch
 rosbag  play  parking_dataset.bag
 ```
 
