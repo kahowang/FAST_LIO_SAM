@@ -1383,12 +1383,22 @@ void gnss_cbk(const sensor_msgs::NavSatFixConstPtr& msg_in)
         gnss_inited = true ;
     }else{                               //   初始化完成
         gnss_data.UpdateXYZ(msg_in->latitude, msg_in->longitude, msg_in->altitude) ;             //  WGS84 -> ENU  ???  调试结果好像是 NED 北东地
+
+        Eigen::Matrix4d gnss_pose = Eigen::Matrix4d::Identity();
+        gnss_pose(0,3) = gnss_data.local_N ;                 //    北
+        gnss_pose(1,3) = gnss_data.local_E ;                 //     东
+        gnss_pose(2,3) = -gnss_data.local_U ;                 //    地
+
+        Eigen::Isometry3d gnss_to_lidar(Gnss_R_wrt_Lidar) ;
+        gnss_to_lidar.pretranslate(Gnss_T_wrt_Lidar);
+        gnss_pose  =  gnss_to_lidar  *  gnss_pose ;                    //  gnss 转到 lidar 系下, （当前Gnss_T_wrt_Lidar，只是一个大致的初值）
+
         nav_msgs::Odometry gnss_data_enu ;
         // add new message to buffer:
         gnss_data_enu.header.stamp = ros::Time().fromSec(gnss_data.time);
-        gnss_data_enu.pose.pose.position.x =  gnss_data.local_E ;  //gnss_data.local_E ;   北
-        gnss_data_enu.pose.pose.position.y =  gnss_data.local_N ;  //gnss_data.local_N;    东
-        gnss_data_enu.pose.pose.position.z =  gnss_data.local_U;  //  地
+        gnss_data_enu.pose.pose.position.x =  gnss_pose(0,3) ;  //gnss_data.local_E ;   北
+        gnss_data_enu.pose.pose.position.y =  gnss_pose(1,3) ;  //gnss_data.local_N;    东
+        gnss_data_enu.pose.pose.position.z =  gnss_pose(2,3) ;  //  地
 
         gnss_data_enu.pose.pose.orientation.x =  geoQuat.x ;                //  gnss 的姿态不可观，所以姿态只用于可视化，取自imu
         gnss_data_enu.pose.pose.orientation.y =  geoQuat.y;
@@ -1404,17 +1414,6 @@ void gnss_cbk(const sensor_msgs::NavSatFixConstPtr& msg_in)
         // visial gnss path in rviz:
         msg_gnss_pose.header.frame_id = "camera_init";
         msg_gnss_pose.header.stamp = ros::Time().fromSec(gnss_data.time);
-        // Eigen::Vector3d gnss_pose_ (gnss_data.local_E, gnss_data.local_N, - gnss_data.local_U); 
-        // Eigen::Vector3d gnss_pose_ (gnss_data.local_N, gnss_data.local_E, - gnss_data.local_U); 
-        Eigen::Matrix4d gnss_pose = Eigen::Matrix4d::Identity();
-
-        gnss_pose(0,3) = gnss_data.local_E ;
-        gnss_pose(1,3) = gnss_data.local_N ;
-        gnss_pose(2,3) =gnss_data.local_U ;
-
-        Eigen::Isometry3d gnss_to_lidar(Gnss_R_wrt_Lidar) ;
-        gnss_to_lidar.pretranslate(Gnss_T_wrt_Lidar);
-        gnss_pose  =  gnss_to_lidar  *  gnss_pose ;                    //  gnss 转到 lidar 系下
 
         msg_gnss_pose.pose.position.x = gnss_pose(0,3) ;  
         msg_gnss_pose.pose.position.y = gnss_pose(1,3) ;
