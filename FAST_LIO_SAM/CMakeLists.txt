@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8.3)
 project(fast_lio_sam)
 
 # SET(CMAKE_BUILD_TYPE "Debug")  
-SET(CMAKE_BUILD_TYPE "REALSE")  
+SET(CMAKE_BUILD_TYPE "Realese")  
 
 ADD_COMPILE_OPTIONS(-std=c++14 )
 set( CMAKE_CXX_FLAGS "-std=c++14 -O3" )
