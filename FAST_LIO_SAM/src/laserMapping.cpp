@@ -219,7 +219,7 @@ bool loopClosureEnableFlag;
 float loopClosureFrequency; //   回环检测频率
 int surroundingKeyframeSize;
 float historyKeyframeSearchRadius;   // 回环检测 radius kdtree搜索半径
-float historyKeyframeSearchTimeDiff; //  帧间时间阈值
+float historyKeyframeSearchTimeDiff; //  帧间时间阈值 프레임 간 시간 임계값
 int historyKeyframeSearchNum;        //   回环时多少个keyframe拼成submap
 float historyKeyframeFitnessScore;   // icp 匹配阈值
 bool potentialLoopFlag = false;
@@ -345,9 +345,10 @@ pcl::PointCloud<PointType>::Ptr transformPointCloud(pcl::PointCloud<PointType>::
     cloudOut->resize(cloudSize);
     
    // 注意：lio_sam 中的姿态用的euler表示，而fastlio存的姿态角是旋转矢量。而 pcl::getTransformation是将euler_angle 转换到rotation_matrix 不合适，注释
+  // lio_sam에서 자세는 오일러 각도로 표현되지만, fastlio에서 저장된 자세 각도는 회전 벡터입니다. 그리고 pcl::getTransformation은 오일러 각도를 회전 행렬로 변환하는 데 적합하지 않습니다.
   // Eigen::Affine3f transCur = pcl::getTransformation(transformIn->x, transformIn->y, transformIn->z, transformIn->roll, transformIn->pitch, transformIn->yaw);
     Eigen::Isometry3d T_b_lidar(state_point.offset_R_L_I  );       //  获取  body2lidar  外参
-    T_b_lidar.pretranslate(state_point.offset_T_L_I);        
+    T_b_lidar.pretranslate(state_point.offset_T_L_I); // 좌표 이동 변환       
 
     Eigen::Affine3f T_w_b_ = pcl::getTransformation(transformIn->x, transformIn->y, transformIn->z, transformIn->roll, transformIn->pitch, transformIn->yaw);
     Eigen::Isometry3d T_w_b ;          //   world2body  
@@ -614,12 +615,17 @@ void addOdomFactor()
     else
     {
         // 添加激光里程计因子
+        // lidar odometry factor 추가
         gtsam::noiseModel::Diagonal::shared_ptr odometryNoise = gtsam::noiseModel::Diagonal::Variances((gtsam::Vector(6) << 1e-6, 1e-6, 1e-6, 1e-4, 1e-4, 1e-4).finished());
+        // 이전 프레임과 현제 프레임의 pose3 객체 생성
         gtsam::Pose3 poseFrom = pclPointTogtsamPose3(cloudKeyPoses6D->points.back()); /// pre
         gtsam::Pose3 poseTo = trans2gtsamPose(transformTobeMapped);                   // cur
+
         // 参数：前一帧id，当前帧id，前一帧与当前帧的位姿变换（作为观测值），噪声协方差
+        // 매개변수: 이전 frame ID, 현재 frame ID, 이전 프레임과 현제 프레임간의 자세 변환 (관측값), 노이즈 공분산
         gtSAMgraph.add(gtsam::BetweenFactor<gtsam::Pose3>(cloudKeyPoses3D->size() - 1, cloudKeyPoses3D->size(), poseFrom.between(poseTo), odometryNoise));
         // 变量节点设置初始值
+        // 변수 노드에 최대값 설정
         initialEstimate.insert(cloudKeyPoses3D->size(), poseTo);
     }
 }
@@ -657,7 +663,9 @@ void addGPSFactor()
 {
     if (gnss_buffer.empty())
         return;
+
     // 如果没有关键帧，或者首尾关键帧距离小于5m，不添加gps因子
+    // 만약 keyframe이 없거나 첫번째와 마지막 keyframe간의 거리가 5m 미만이라면, gps factor 추가하지 않음
     if (cloudKeyPoses3D->points.empty())
         return;
     else
@@ -665,6 +673,7 @@ void addGPSFactor()
         if (pointDistance(cloudKeyPoses3D->front(), cloudKeyPoses3D->back()) < 5.0)
             return;
     }
+
     // 位姿协方差很小，没必要加入GPS数据进行校正
     if (poseCovariance(3,3) < poseCovThreshold && poseCovariance(4,4) < poseCovThreshold)
         return;
@@ -740,6 +749,7 @@ void saveKeyFramesAndFactor()
     // 执行优化
     isam->update(gtSAMgraph, initialEstimate);
     isam->update();
+    // addLoopFactor 함수에서 aLoopIsClosed = true
     if (aLoopIsClosed == true) // 有回环因子，多update几次
     {
         isam->update();
@@ -749,16 +759,19 @@ void saveKeyFramesAndFactor()
         isam->update();
     }
     // update之后要清空一下保存的因子图，注：历史数据不会清掉，ISAM保存起来了
+    // ISAM에 이전 데이터 (gtSAMgraph, initialEstimate 데이터 저장하고 그 변수들 reset)
     gtSAMgraph.resize(0);
     initialEstimate.clear();
 
-    PointType thisPose3D;
-    PointTypePose thisPose6D;
+    PointType thisPose3D; // pcl::PointXYZNormal
+    PointTypePose thisPose6D; // PointXYZIRPYT (xyz, intensity, rpy, time)
     gtsam::Pose3 latestEstimate;
 
     // 优化结果
+    // 최적화 (가우스 뉴턴 최적화 방법 사용)
     isamCurrentEstimate = isam->calculateBestEstimate();
     // 当前帧位姿结果
+    // 현재의 frame의 자세 결과 저장
     latestEstimate = isamCurrentEstimate.at<gtsam::Pose3>(isamCurrentEstimate.size() - 1);
 
     // cloudKeyPoses3D加入当前帧位置
@@ -766,6 +779,7 @@ void saveKeyFramesAndFactor()
     thisPose3D.y = latestEstimate.translation().y();
     thisPose3D.z = latestEstimate.translation().z();
     // 索引
+    // intensity를 cloudkeypose3d의 size로 사용 ?
     thisPose3D.intensity = cloudKeyPoses3D->size(); //  使用intensity作为该帧点云的index
     cloudKeyPoses3D->push_back(thisPose3D);         //  新关键帧帧放入队列中
 
@@ -781,9 +795,11 @@ void saveKeyFramesAndFactor()
     cloudKeyPoses6D->push_back(thisPose6D);
 
     // 位姿协方差
+    // 위치 공분산
     poseCovariance = isam->marginalCovariance(isamCurrentEstimate.size() - 1);
 
     // ESKF状态和方差  更新
+    // loop closure된 것을 반영하여 kalman filter current state vector 재 update
     state_ikfom state_updated = kf.get_x(); //  获取cur_pose (还没修正)
     Eigen::Vector3d pos(latestEstimate.translation().x(), latestEstimate.translation().y(), latestEstimate.translation().z());
     Eigen::Quaterniond q = EulerToQuat(latestEstimate.rotation().roll(), latestEstimate.rotation().pitch(), latestEstimate.rotation().yaw());
@@ -809,12 +825,14 @@ void saveKeyFramesAndFactor()
     // pcl::PointCloud<PointType>::Ptr thisCornerKeyFrame(new pcl::PointCloud<PointType>());
     pcl::PointCloud<PointType>::Ptr thisSurfKeyFrame(new pcl::PointCloud<PointType>());
     // pcl::copyPointCloud(*feats_undistort,  *thisCornerKeyFrame);
+    // downsampling이 되지 않은 pcd 저장
     pcl::copyPointCloud(*feats_undistort, *thisSurfKeyFrame); // 存储关键帧,没有降采样的点云
 
     // 保存特征点降采样集合
     // cornerCloudKeyFrames.push_back(thisCornerKeyFrame);
     surfCloudKeyFrames.push_back(thisSurfKeyFrame);
 
+    // nav_msgs::Path인 globalPath.poses에 저장
     updatePath(thisPose6D); //  可视化update后的path
 }
 
@@ -881,9 +899,10 @@ void correctPoses()
     if (aLoopIsClosed == true)
     {
         // 清空里程计轨迹
-        globalPath.poses.clear();
+        globalPath.poses.clear(); // 전역 path clear
         // 更新因子图中所有变量节点的位姿，也就是所有历史关键帧的位姿
-        int numPoses = isamCurrentEstimate.size();
+        // factor graph 내 모든 변수 노드 자세를 업데이트함. 즉, 모든 과거 keyframe의 자세를 Update함
+        int numPoses = isamCurrentEstimate.size(); // 최적화 된 gtsam::Values
         for (int i = 0; i < numPoses; ++i)
         {
             cloudKeyPoses3D->points[i].x = isamCurrentEstimate.at<gtsam::Pose3>(i).translation().x();
@@ -908,36 +927,45 @@ void correctPoses()
 }
 
 //回环检测三大要素
+//  - Loop Closure detection의 세가지 주요 요소
 // 1.设置最小时间差，太近没必要
+//  - 최소 시간 차이 설정 -> 너무 가까우면 필요하지 않음
 // 2.控制回环的频率，避免频繁检测，每检测一次，就做一次等待
+//  - 루프 클로저 빈도 제어 -> 빈번한 감지를 피하기 위해 각 감지마다 대기 수행
 // 3.根据当前最小距离重新计算等待时间
+//  - 현재 최소 거리를 기반으로 대기 시간 다시 계산
 bool detectLoopClosureDistance(int *latestID, int *closestID)
 {
     // 当前关键帧帧
-    int loopKeyCur = copy_cloudKeyPoses3D->size() - 1; //  当前关键帧索引
+    int loopKeyCur = copy_cloudKeyPoses3D->size() - 1; //  当前关键帧索引 (현재 keyframe index)
     int loopKeyPre = -1;
 
     // 当前帧已经添加过闭环对应关系，不再继续添加
     auto it = loopIndexContainer.find(loopKeyCur);
-    if (it != loopIndexContainer.end())
-        return false;
+    if (it != loopIndexContainer.end()) return false; // loop 요소가 있다면 return
+
     // 在历史关键帧中查找与当前关键帧距离最近的关键帧集合
+    // 현재 keyframe과 과거 keyframe의 집합을 찾는다
     std::vector<int> pointSearchIndLoop;                        //  候选关键帧索引
     std::vector<float> pointSearchSqDisLoop;                    //  候选关键帧距离
     kdtreeHistoryKeyPoses->setInputCloud(copy_cloudKeyPoses3D); //  历史帧构建kdtree
+    // historyKeyframeSearchRadius meter 범위 안에 있는 pcd만 kd tree
     kdtreeHistoryKeyPoses->radiusSearch(copy_cloudKeyPoses3D->back(), historyKeyframeSearchRadius, pointSearchIndLoop, pointSearchSqDisLoop, 0);
     // 在候选关键帧集合中，找到与当前帧时间相隔较远的帧，设为候选匹配帧
+    // 후보 키프레임 집합에서 현재 프레임과 시간적으로 먼 프레임을 찾아서 후보 매치 프레임으로 설정
     for (int i = 0; i < (int)pointSearchIndLoop.size(); ++i)
     {
         int id = pointSearchIndLoop[i];
+        // 최소 historyKeyframeSearchTimeDiff 이전의 시간을 가진 keyframe
         if (abs(copy_cloudKeyPoses6D->points[id].time - lidar_end_time) > historyKeyframeSearchTimeDiff)
         {
             loopKeyPre = id;
             break;
         }
     }
-    if (loopKeyPre == -1 || loopKeyCur == loopKeyPre)
-        return false;
+    
+    if (loopKeyPre == -1 || loopKeyCur == loopKeyPre) return false;
+
     *latestID = loopKeyCur;
     *closestID = loopKeyPre;
 
@@ -951,9 +979,10 @@ bool detectLoopClosureDistance(int *latestID, int *closestID)
 void loopFindNearKeyframes(pcl::PointCloud<PointType>::Ptr &nearKeyframes, const int &key, const int &searchNum)
 {
     // 提取key索引的关键帧前后相邻若干帧的关键帧特征点集合
+    // 키프레임 인덱스의 앞뒤 여러 프레임의 키프레임 특징 포인트 집합 추출
     nearKeyframes->clear();
-    int cloudSize = copy_cloudKeyPoses6D->size();
-    auto surfcloud_keyframes_size = surfCloudKeyFrames.size() ;
+    int cloudSize = copy_cloudKeyPoses6D->size(); // current pcd
+    auto surfcloud_keyframes_size = surfCloudKeyFrames.size() ; // raw pcd lists
     for (int i = -searchNum; i <= searchNum; ++i)
     {
         int keyNear = key + i;
@@ -980,6 +1009,7 @@ void loopFindNearKeyframes(pcl::PointCloud<PointType>::Ptr &nearKeyframes, const
 
 void performLoopClosure()
 {
+    // lidar timestamp
     ros::Time timeLaserInfoStamp = ros::Time().fromSec(lidar_end_time); //  时间戳
     string odometryFrame = "camera_init";
 
@@ -994,26 +1024,30 @@ void performLoopClosure()
     mtx.unlock();
 
     // 当前关键帧索引，候选闭环匹配帧索引
-    int loopKeyCur;
-    int loopKeyPre;
+    int loopKeyCur; // 현재 keyframe index
+    int loopKeyPre; // loop closure matching 후보 index
     // 在历史关键帧中查找与当前关键帧距离最近的关键帧集合，选择时间相隔较远的一帧作为候选闭环帧
-    if (detectLoopClosureDistance(&loopKeyCur, &loopKeyPre) == false)
-    {
-        return;
-    }
+    // 과거의 핵심 프레임 중에서 현재의 핵심 프레임과 가장 가까운 프레임 집합을 찾고, 시간적으로 더 멀리 떨어진 하나의 프레임을 후보 루프 클로저 프레임으로 선택
+    if (detectLoopClosureDistance(&loopKeyCur, &loopKeyPre) == false) { return; }
 
     // 提取
     pcl::PointCloud<PointType>::Ptr cureKeyframeCloud(new pcl::PointCloud<PointType>()); //  cue keyframe
     pcl::PointCloud<PointType>::Ptr prevKeyframeCloud(new pcl::PointCloud<PointType>()); //   history keyframe submap
     {
         // 提取当前关键帧特征点集合，降采样
-        loopFindNearKeyframes(cureKeyframeCloud, loopKeyCur, 0); //  将cur keyframe 转换到world系下
+        // 현재 키프레임 특징 포인트 집합 추출 및 다운샘플링
+        loopFindNearKeyframes(cureKeyframeCloud, loopKeyCur, 0); //  将cur keyframe 转换到world系下 현재 키프레임을 월드 좌표계로 변환
+        
         // 提取闭环匹配关键帧前后相邻若干帧的关键帧特征点集合，降采样
+        // 루프 클로저 매치 키프레임 앞뒤로 여러 프레임의 키프레임 특징 포인트 집합 추출 및 다운샘플링
+        // historyKeyframeSearchNum 개의 키프레임을 선택하여 서브맵을 생성합니다.
         loopFindNearKeyframes(prevKeyframeCloud, loopKeyPre, historyKeyframeSearchNum); //  选取historyKeyframeSearchNum个keyframe拼成submap
+        
         // 如果特征点较少，返回
         // if (cureKeyframeCloud->size() < 300 || prevKeyframeCloud->size() < 1000)
         //     return;
         // 发布闭环匹配关键帧局部map
+        
         if (pubHistoryKeyFrames.getNumSubscribers() != 0)
             publishCloud(&pubHistoryKeyFrames, prevKeyframeCloud, timeLaserInfoStamp, odometryFrame);
     }
@@ -1021,7 +1055,7 @@ void performLoopClosure()
     // ICP Settings
     pcl::IterativeClosestPoint<PointType, PointType> icp;
     icp.setMaxCorrespondenceDistance(150); // giseop , use a value can cover 2*historyKeyframeSearchNum range in meter
-    icp.setMaximumIterations(100);
+    icp.setMaximumIterations(300);
     icp.setTransformationEpsilon(1e-6);
     icp.setEuclideanFitnessEpsilon(1e-6);
     icp.setRANSACIterations(0);
@@ -1033,6 +1067,7 @@ void performLoopClosure()
     icp.align(*unused_result);
 
     // 未收敛，或者匹配不够好
+    // getFitnessScore = 적은 값일 수록 더 정확한 값
     if (icp.hasConverged() == false || icp.getFitnessScore() > historyKeyframeFitnessScore)
         return;
 
@@ -1078,6 +1113,7 @@ void performLoopClosure()
 //回环检测线程
 void loopClosureThread()
 {
+    // loop를 안한다면
     if (loopClosureEnableFlag == false)
     {
         std::cout << "loopClosureEnableFlag   ==  false " << endl;
@@ -1939,27 +1975,30 @@ void publishGlobalMap()
     if (cloudKeyPoses3D->points.empty() == true)
         return;
     pcl::KdTreeFLANN<PointType>::Ptr kdtreeGlobalMap(new pcl::KdTreeFLANN<PointType>());
-    ;
     pcl::PointCloud<PointType>::Ptr globalMapKeyPoses(new pcl::PointCloud<PointType>());
-    pcl::PointCloud<PointType>::Ptr globalMapKeyPosesDS(new pcl::PointCloud<PointType>());
+    pcl::PointCloud<PointType>::Ptr globalMapKeyPosesDS(new pcl::PointCloud<PointType>()); // Downsampling PCD
     pcl::PointCloud<PointType>::Ptr globalMapKeyFrames(new pcl::PointCloud<PointType>());
     pcl::PointCloud<PointType>::Ptr globalMapKeyFramesDS(new pcl::PointCloud<PointType>());
 
     // kdtree查找最近一帧关键帧相邻的关键帧集合
+    // kd tree를 사용하여 가장 가까운 이전 keyframe 주변의 keyframe 모음을 검색한다.
     std::vector<int> pointSearchIndGlobalMap;
     std::vector<float> pointSearchSqDisGlobalMap;
     mtx.lock();
     kdtreeGlobalMap->setInputCloud(cloudKeyPoses3D);
+    // source: cloudKeyPoses3D에서 globalMapVisualizationSearchRadius 범위 안에 있는 points 탐색
     kdtreeGlobalMap->radiusSearch(cloudKeyPoses3D->back(), globalMapVisualizationSearchRadius, pointSearchIndGlobalMap, pointSearchSqDisGlobalMap, 0);
     mtx.unlock();
-
     for (int i = 0; i < (int)pointSearchIndGlobalMap.size(); ++i)
         globalMapKeyPoses->push_back(cloudKeyPoses3D->points[pointSearchIndGlobalMap[i]]);
-    // 降采样
+    
+    
+    // 降采样 = Downsampling
     pcl::VoxelGrid<PointType> downSizeFilterGlobalMapKeyPoses;
     downSizeFilterGlobalMapKeyPoses.setLeafSize(globalMapVisualizationPoseDensity, globalMapVisualizationPoseDensity, globalMapVisualizationPoseDensity); // for global map visualization
     downSizeFilterGlobalMapKeyPoses.setInputCloud(globalMapKeyPoses);
     downSizeFilterGlobalMapKeyPoses.filter(*globalMapKeyPosesDS);
+
     // 提取局部相邻关键帧对应的特征点云
     for (int i = 0; i < (int)globalMapKeyPosesDS->size(); ++i)
     {
@@ -2423,12 +2462,18 @@ int main(int argc, char **argv)
             getCurPose(state_point); //   更新transformTobeMapped
             /*back end*/
             // 1.计算当前帧与前一帧位姿变换，如果变化太小，不设为关键帧，反之设为关键帧
+            //  - 현재 프레임과 이전 프래임의 자세 변화를 계산한다. 변화가 너무 작으면 키프레임 미설정, 아니면 설정
             // 2.添加激光里程计因子、GPS因子、闭环因子
+            //  - lidar odometry factor, gps factor, loop closure factor 추가
             // 3.执行因子图优化
+            //  - factor graph optimization 수행
             // 4.得到当前帧优化后的位姿，位姿协方差
+            //  - optimization되 현재 frame의 자세와 자세 공분산을 얻음
             // 5.添加cloudKeyPoses3D，cloudKeyPoses6D，更新transformTobeMapped，添加当前关键帧的角点、平面点集合
+            //  - cloudKeyPoses3D와 cloudKeyPoses6D 추가, transformTobeMapped 업데이트, 현재 키프레임의 코너 및 평면 포인트 집합을 추가 
             saveKeyFramesAndFactor();
             // 更新因子图中所有变量节点的位姿，也就是所有历史关键帧的位姿，更新里程计轨迹， 重构ikdtree
+            // 모든 변수 노드의 자세(이전 키프레임들) 업데이트, Odmetry 경로 업데이트, ikdtree 재구성 
             correctPoses();
             /******* Publish odometry *******/
             publish_odometry(pubOdomAftMapped);

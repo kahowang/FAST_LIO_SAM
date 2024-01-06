@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/workspaces/FAST_LIO_SAM/FAST_LIO_SAM/src",
+                "/workspaces/FAST_LIO_SAM/FAST_LIO_SAM/include",
+                "/usr/include/pcl-1.10",
+                "/opt/ros/noetic/include",
+                "/usr/include/eigen3",
+                "/usr/local/include/gtsam",
+                "/usr/local/include"
+            ],
+            "defines": [],
+            "compilerPath": "/usr/bin/g++-9",
+            "cStandard": "c17",
+            "cppStandard": "c++14",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
